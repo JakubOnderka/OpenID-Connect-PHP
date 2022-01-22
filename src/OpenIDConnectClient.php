@@ -896,9 +896,9 @@ class OpenIDConnectClient
     /**
      * @param string $hashtype
      * @param object $key
-     * @param $payload
-     * @param $signature
-     * @param $signatureType
+     * @param string $payload
+     * @param string $signature
+     * @param string $signatureType
      * @return bool
      * @throws OpenIDConnectClientException
      */
@@ -907,22 +907,22 @@ class OpenIDConnectClient
             throw new OpenIDConnectClientException('Malformed key object');
         }
 
-        /* We already have base64url-encoded data, so re-encode it as
-           regular base64 and use the XML key format for simplicity.
-        */
-        $public_key_xml = "<RSAKeyValue>\r\n".
-            '  <Modulus>' . b64url2b64($key->n) . "</Modulus>\r\n" .
-            '  <Exponent>' . b64url2b64($key->e) . "</Exponent>\r\n" .
-            '</RSAKeyValue>';
-        $key = \phpseclib3\Crypt\PublicKeyLoader::load($public_key_xml)
+        $modulus = new \phpseclib3\Math\BigInteger(\ParagonIE\ConstantTime\Base64::decode(b64url2b64($key->n)), 256);
+        $exponent = new \phpseclib3\Math\BigInteger(\ParagonIE\ConstantTime\Base64::decode(b64url2b64($key->e)), 256);
+        $publicKeyRaw = [
+            'modulus' => $modulus,
+            'exponent' => $exponent,
+        ];
+
+        $rsa = \phpseclib3\Crypt\RSA::load($publicKeyRaw)
             ->withHash($hashtype);
         if ($signatureType === 'PSS') {
-            $key = $key->withMGFHash($hashtype)
+            $rsa = $rsa->withMGFHash($hashtype)
                 ->withPadding(\phpseclib3\Crypt\RSA::SIGNATURE_PSS);
         } else {
-            $key = $key->withPadding(\phpseclib3\Crypt\RSA::SIGNATURE_PKCS1);
+            $rsa = $rsa->withPadding(\phpseclib3\Crypt\RSA::SIGNATURE_PKCS1);
         }
-        return $key->verify($payload, $signature);
+        return $rsa->verify($payload, $signature);
     }
 
     /**
