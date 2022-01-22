@@ -2,8 +2,9 @@
 
 use Jumbojett\OpenIDConnectClient;
 use Jumbojett\OpenIDConnectClientException;
+use PHPUnit\Framework\TestCase;
 
-class OpenIDConnectClientTest extends PHPUnit_Framework_TestCase
+class OpenIDConnectClientTest extends TestCase
 {
     /**
      * @return void

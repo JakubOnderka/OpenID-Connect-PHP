@@ -35,6 +35,9 @@ jobs:
                   path: ${{ steps.composer-cache.outputs.dir }}
                   key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
                   restore-keys: ${{ runner.os }}-composer-
+            - name: Update PHPUnit for PHP 8
+              if: startsWith(matrix.php, '8.')
+              run: composer require --dev phpunit/phpunit ^8
             - name: Install dependencies
               run: composer update $DEFAULT_COMPOSER_FLAGS
             - name: Run unit tests

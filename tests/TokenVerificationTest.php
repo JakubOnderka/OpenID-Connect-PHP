@@ -1,9 +1,9 @@
 <?php
 
-
 use Jumbojett\OpenIDConnectClient;
+use PHPUnit\Framework\TestCase;
 
-class TokenVerificationTest extends PHPUnit_Framework_TestCase
+class TokenVerificationTest extends TestCase
 {
     /**
      * @param $alg
