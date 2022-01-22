@@ -35,7 +35,7 @@ namespace Jumbojett;
  * A wrapper around base64_decode which decodes Base64URL-encoded data,
  * which is not the same alphabet as base64.
  * @param string $base64url
- * @return bool|string
+ * @return false|string
  */
 function base64url_decode($base64url) {
     return base64_decode(b64url2b64($base64url));
@@ -202,9 +202,9 @@ class OpenIDConnectClient
     private $additionalJwks = array();
 
     /**
-     * @var array holds verified jwt claims
+     * @var object holds verified jwt claims
      */
-    protected $verifiedClaims = array();
+    protected $verifiedClaims;
 
     /**
      * @var callable validator function for issuer claim
@@ -477,7 +477,7 @@ class OpenIDConnectClient
     }
 
     /**
-     * @param $jwk object - example: (object) array('kid' => ..., 'nbf' => ..., 'use' => 'sig', 'kty' => "RSA", 'e' => "", 'n' => "")
+     * @param object $jwk - example: (object) array('kid' => ..., 'nbf' => ..., 'use' => 'sig', 'kty' => "RSA", 'e' => "", 'n' => "")
      */
     protected function addAdditionalJwk($jwk) {
         $this->additionalJwks[] = $jwk;
@@ -487,9 +487,9 @@ class OpenIDConnectClient
      * Get's anything that we need configuration wise including endpoints, and other values
      *
      * @param string $param
-     * @param string $default optional
+     * @param string|null $default optional
      * @throws OpenIDConnectClientException
-     * @return string
+     * @return mixed
      *
      */
     protected function getProviderConfigValue($param, $default = null) {
@@ -507,10 +507,9 @@ class OpenIDConnectClient
      * Get's anything that we need configuration wise including endpoints, and other values
      *
      * @param string $param
-     * @param string $default optional
+     * @param string|null $default optional
      * @throws OpenIDConnectClientException
-     * @return string
-     *
+     * @return mixed
      */
     private function getWellKnownConfigValue($param, $default = null) {
 
@@ -542,9 +541,9 @@ class OpenIDConnectClient
     }
 
     /**
-     * Set optionnal parameters for .well-known/openid-configuration 
+     * Set optional parameters for .well-known/openid-configuration
      *
-     * @param string $param
+     * @param array $param
      *
      */
     public function setWellKnownConfigParameters(array $params = []){
@@ -856,7 +855,7 @@ class OpenIDConnectClient
 
     /**
      * @param array $keys
-     * @param array $header
+     * @param object $header
      * @throws OpenIDConnectClientException
      * @return object
      */
@@ -927,9 +926,9 @@ class OpenIDConnectClient
 
     /**
      * @param string $hashtype
-     * @param object $key
-     * @param $payload
-     * @param $signature
+     * @param string $key
+     * @param string $payload
+     * @param string $signature
      * @return bool
      * @throws OpenIDConnectClientException
      */
