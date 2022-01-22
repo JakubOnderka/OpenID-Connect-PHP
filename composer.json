@@ -3,11 +3,10 @@
     "description": "Bare-bones OpenID Connect client",
     "license": "Apache-2.0",
     "require": {
-        "php": ">=5.4",
+        "php": ">=7.0",
         "phpseclib/phpseclib" : "~2.0 || ^3.0",
         "ext-json": "*",
-        "ext-curl": "*",
-        "paragonie/random_compat": ">=2"
+        "ext-curl": "*"
     },
     "require-dev": {
         "phpunit/phpunit": "^4.8",
@@ -23,7 +22,7 @@
     },
     "config" : {
         "platform": {
-            "php": "5.4"
+            "php": "7.0"
         }
     }
 }
