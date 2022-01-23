@@ -23,6 +23,10 @@ declare(strict_types=1);
 
 namespace Jumbojett;
 
+use ParagonIE\ConstantTime\Base64;
+use phpseclib3\Crypt\RSA;
+use phpseclib3\Math\BigInteger;
+
 /**
  *
  * JWT signature verification support by Jonathan Reed <jdreed@mit.edu>
@@ -314,15 +318,11 @@ class OpenIDConnectClient
             $claims = $this->decodeJWT($token_json->id_token, 1);
 
             // Verify the signature
-            if ($this->canVerifySignatures()) {
-                if (!$this->getProviderConfigValue('jwks_uri')) {
-                    throw new OpenIDConnectClientException ('Unable to verify signature due to no jwks_uri being defined');
-                }
-                if (!$this->verifyJWTsignature($token_json->id_token)) {
-                    throw new OpenIDConnectClientException ('Unable to verify signature');
-                }
-            } else {
-                user_error('Warning: JWT signature verification unavailable.');
+            if (!$this->getProviderConfigValue('jwks_uri')) {
+                throw new OpenIDConnectClientException ('Unable to verify signature due to no jwks_uri being defined');
+            }
+            if (!$this->verifyJWTsignature($token_json->id_token)) {
+                throw new OpenIDConnectClientException ('Unable to verify signature');
             }
 
             // Save the id token
@@ -376,15 +376,11 @@ class OpenIDConnectClient
             $claims = $this->decodeJWT($id_token, 1);
 
             // Verify the signature
-            if ($this->canVerifySignatures()) {
-                if (!$this->getProviderConfigValue('jwks_uri')) {
-                    throw new OpenIDConnectClientException ('Unable to verify signature due to no jwks_uri being defined');
-                }
-                if (!$this->verifyJWTsignature($id_token)) {
-                    throw new OpenIDConnectClientException ('Unable to verify signature');
-                }
-            } else {
-                user_error('Warning: JWT signature verification unavailable.');
+            if (!$this->getProviderConfigValue('jwks_uri')) {
+                throw new OpenIDConnectClientException ('Unable to verify signature due to no jwks_uri being defined');
+            }
+            if (!$this->verifyJWTsignature($id_token)) {
+                throw new OpenIDConnectClientException ('Unable to verify signature');
             }
 
             // Save the id token
@@ -847,10 +843,10 @@ class OpenIDConnectClient
 
     /**
      * @param object $header
-     * @return \phpseclib3\Crypt\Common\AsymmetricKey
+     * @return RSA
      * @throws OpenIDConnectClientException
      */
-    private function fetchKeyForHeader($header)
+    private function fetchKeyForHeader($header): RSA
     {
         try {
             $jwks = $this->jsonDecode($this->fetchURL($this->getProviderConfigValue('jwks_uri')));
@@ -863,13 +859,13 @@ class OpenIDConnectClient
             throw new OpenIDConnectClientException('Malformed key object');
         }
 
-        $modulus = new \phpseclib3\Math\BigInteger(\ParagonIE\ConstantTime\Base64::decode(b64url2b64($key->n)), 256);
-        $exponent = new \phpseclib3\Math\BigInteger(\ParagonIE\ConstantTime\Base64::decode(b64url2b64($key->e)), 256);
+        $modulus = new BigInteger(Base64::decode(b64url2b64($key->n)), 256);
+        $exponent = new BigInteger(Base64::decode(b64url2b64($key->e)), 256);
         $publicKeyRaw = [
             'modulus' => $modulus,
             'exponent' => $exponent,
         ];
-        return \phpseclib3\Crypt\RSA::load($publicKeyRaw);
+        return RSA::load($publicKeyRaw);
     }
 
     /**
@@ -899,22 +895,22 @@ class OpenIDConnectClient
 
     /**
      * @param string $hashtype
-     * @param \phpseclib3\Crypt\RSA $key
+     * @param RSA $key
      * @param string $payload
      * @param string $signature
-     * @param string $signatureType
+     * @param bool $isPss
      * @return bool
      * @throws OpenIDConnectClientException
      */
-    private function verifyRSAJWTsignature(string $hashtype, $key, string $payload, string $signature, string $signatureType): bool
+    private function verifyRSAJWTsignature(string $hashtype, RSA $key, string $payload, string $signature, bool $isPss): bool
     {
         $rsa = $key
             ->withHash($hashtype);
-        if ($signatureType === 'PSS') {
+        if ($isPss) {
             $rsa = $rsa->withMGFHash($hashtype)
-                ->withPadding(\phpseclib3\Crypt\RSA::SIGNATURE_PSS);
+                ->withPadding(RSA::SIGNATURE_PSS);
         } else {
-            $rsa = $rsa->withPadding(\phpseclib3\Crypt\RSA::SIGNATURE_PKCS1);
+            $rsa = $rsa->withPadding(RSA::SIGNATURE_PKCS1);
         }
         return $rsa->verify($payload, $signature);
     }
@@ -976,9 +972,9 @@ class OpenIDConnectClient
             case 'RS384':
             case 'RS512':
                 $hashtype = 'sha' . substr($header->alg, 2);
-                $signatureType = $header->alg === 'PS256' ? 'PSS' : '';
+                $isPss = $header->alg === 'PS256';
                 $key = $this->fetchKeyForHeader($header);
-                return $this->verifyRSAJWTsignature($hashtype, $key, $payload, $signature, $signatureType);
+                return $this->verifyRSAJWTsignature($hashtype, $key, $payload, $signature, $isPss);
             case 'HS256':
             case 'HS512':
             case 'HS384':
@@ -1511,13 +1507,6 @@ class OpenIDConnectClient
      */
     public function getClientSecret() {
         return $this->clientSecret;
-    }
-
-    /**
-     * @return bool
-     */
-    public function canVerifySignatures() {
-        return class_exists('\phpseclib3\Crypt\RSA');
     }
 
     /**
