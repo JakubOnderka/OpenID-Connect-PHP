@@ -851,8 +851,9 @@ class OpenIDConnectClient
      * @throws OpenIDConnectClientException
      * @return object
      */
-    private function get_key_for_header(array $keys, $header) {
-        foreach ($keys as $key) {
+    private function getKeyForHeader(array $keys, $header)
+    {
+        foreach (array_merge($keys, $this->additionalJwks) as $key) {
             if ($key->kty === 'RSA') {
                 if (!isset($header->kid) || $key->kid === $header->kid) {
                     return $key;
@@ -863,23 +864,9 @@ class OpenIDConnectClient
                 }
             }
         }
-        if ($this->additionalJwks) {
-            foreach ($this->additionalJwks as $key) {
-                if ($key->kty === 'RSA') {
-                    if (!isset($header->kid) || $key->kid === $header->kid) {
-                        return $key;
-                    }
-                } else {
-                    if (isset($key->alg) && $key->alg === $header->alg && $key->kid === $header->kid) {
-                        return $key;
-                    }
-                }
-            }
-        }
         if (isset($header->kid)) {
-            throw new OpenIDConnectClientException('Unable to find a key for (algorithm, kid):' . $header->alg . ', ' . $header->kid . ')');
+            throw new OpenIDConnectClientException("Unable to find a key for {$header->alg} with kid `{$header->kid}`");
         }
-
         throw new OpenIDConnectClientException('Unable to find a key for RSA');
     }
 
@@ -968,10 +955,9 @@ class OpenIDConnectClient
             case 'RS512':
                 $hashtype = 'sha' . substr($header->alg, 2);
                 $signatureType = $header->alg === 'PS256' ? 'PSS' : '';
+                $key = $this->getKeyForHeader($jwks->keys, $header);
 
-                return $this->verifyRSAJWTsignature($hashtype,
-                    $this->get_key_for_header($jwks->keys, $header),
-                    $payload, $signature, $signatureType);
+                return $this->verifyRSAJWTsignature($hashtype, $key, $payload, $signature, $signatureType);
             case 'HS256':
             case 'HS512':
             case 'HS384':
