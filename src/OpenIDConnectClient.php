@@ -324,9 +324,6 @@ class OpenIDConnectClient
             $claims = $this->decodeJWT($token_json->id_token, 1);
 
             // Verify the signature
-            if (!$this->getProviderConfigValue('jwks_uri')) {
-                throw new OpenIDConnectClientException ('Unable to verify signature due to no jwks_uri being defined');
-            }
             if (!$this->verifyJWTsignature($token_json->id_token)) {
                 throw new OpenIDConnectClientException ('Unable to verify signature');
             }
@@ -382,9 +379,6 @@ class OpenIDConnectClient
             $claims = $this->decodeJWT($id_token, 1);
 
             // Verify the signature
-            if (!$this->getProviderConfigValue('jwks_uri')) {
-                throw new OpenIDConnectClientException ('Unable to verify signature due to no jwks_uri being defined');
-            }
             if (!$this->verifyJWTsignature($id_token)) {
                 throw new OpenIDConnectClientException ('Unable to verify signature');
             }
@@ -875,6 +869,9 @@ class OpenIDConnectClient
     private function fetchKeyForHeader($header): RSA
     {
         $jwksUri = $this->getProviderConfigValue('jwks_uri');
+        if (!$jwksUri) {
+            throw new OpenIDConnectClientException ('Unable to verify signature due to no jwks_uri being defined');
+        }
 
         if (function_exists('apcu_fetch') && $this->keyCacheExpiration > 0) {
             $cacheKey = 'openid_connect_' . md5($jwksUri);
