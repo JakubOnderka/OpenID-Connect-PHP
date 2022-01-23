@@ -22,9 +22,6 @@ class TokenVerificationTest extends TestCase
         $client->providerConfigParam(['jwks_uri' => 'https://jwt.io/.well-known/jwks.json']);
         $verified = $client->verifyJWTsignature($jwt);
         $this->assertTrue($verified);
-
-        $verified = $client->verifyJWTsignature($jwt . 'abb');
-        $this->assertFalse($verified);
     }
 
     /**
@@ -43,7 +40,8 @@ class TokenVerificationTest extends TestCase
         $verified = $client->verifyJWTsignature($jwt);
         $this->assertTrue($verified);
 
-        $verified = $client->verifyJWTsignature($jwt . 'abc');
+        $client->setClientSecret('secret__invalid');
+        $verified = $client->verifyJWTsignature($jwt);
         $this->assertFalse($verified);
     }
 

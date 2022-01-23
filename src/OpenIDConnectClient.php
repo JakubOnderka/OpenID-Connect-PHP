@@ -36,10 +36,15 @@ namespace Jumbojett;
  * A wrapper around base64_decode which decodes Base64URL-encoded data,
  * which is not the same alphabet as base64.
  * @param string $base64url
- * @return false|string
+ * @return string
+ * @throws \Exception
  */
-function base64url_decode(string $base64url) {
-    return base64_decode(b64url2b64($base64url));
+function base64url_decode(string $base64url): string {
+    $decoded = base64_decode(b64url2b64($base64url), true);
+    if ($decoded === false) {
+        throw new \Exception("Could not decode string as base64.");
+    }
+    return $decoded;
 }
 
 /**
