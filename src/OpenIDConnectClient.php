@@ -667,7 +667,7 @@ class OpenIDConnectClient
      */
     protected function generateRandString(): string
     {
-        return \bin2hex(\random_bytes(16));
+        return $this->base64url_encode(\random_bytes(16));
     }
 
     /**
@@ -1121,7 +1121,7 @@ class OpenIDConnectClient
                 $bit = '256';
             }
             $len = ((int)$bit)/16;
-            $expected_at_hash = $this->urlEncode(substr(hash('sha'.$bit, $accessToken, true), 0, $len));
+            $expected_at_hash = $this->base64url_encode(substr(hash('sha'.$bit, $accessToken, true), 0, $len));
         }
         return (($this->issuerValidator->__invoke($claims->iss))
             && (($claims->aud === $this->clientID) || in_array($this->clientID, $claims->aud, true))
@@ -1136,7 +1136,8 @@ class OpenIDConnectClient
      * @param string $str
      * @return string
      */
-    protected function urlEncode(string $str): string {
+    protected function base64url_encode(string $str): string
+    {
         $enc = base64_encode($str);
         $enc = rtrim($enc, '=');
         $enc = strtr($enc, '+/', '-_');
