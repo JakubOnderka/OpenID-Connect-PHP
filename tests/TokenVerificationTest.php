@@ -54,8 +54,9 @@ class TokenVerificationTest extends TestCase
      */
     public function testHsTokenVerification(string $jwt)
     {
+        /** @var OpenIDConnectClient | MockObject $client */
         $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchUrl'])->getMock();
-        $client->method('fetchUrl')->willReturn(file_get_contents(__DIR__ . "/data/jwks-ps256.json"));
+        $client->expects($this->never())->method('fetchUrl');
         $client->setProviderURL('https://jwt.io/');
         $client->setClientSecret('secret');
         $client->providerConfigParam(['jwks_uri' => 'https://jwt.io/.well-known/jwks.json']);

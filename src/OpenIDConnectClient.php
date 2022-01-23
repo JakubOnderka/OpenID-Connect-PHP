@@ -846,6 +846,33 @@ class OpenIDConnectClient
     }
 
     /**
+     * @param object $header
+     * @return \phpseclib3\Crypt\Common\AsymmetricKey
+     * @throws OpenIDConnectClientException
+     */
+    private function fetchKeyForHeader($header)
+    {
+        try {
+            $jwks = $this->jsonDecode($this->fetchURL($this->getProviderConfigValue('jwks_uri')));
+        } catch (\Exception $e) {
+            throw new OpenIDConnectClientException('Error fetching JSON from jwks_uri', 0, $e);
+        }
+        $key = $this->getKeyForHeader($jwks->keys, $header);
+
+        if (!isset($key->n) || !isset($key->e)) {
+            throw new OpenIDConnectClientException('Malformed key object');
+        }
+
+        $modulus = new \phpseclib3\Math\BigInteger(\ParagonIE\ConstantTime\Base64::decode(b64url2b64($key->n)), 256);
+        $exponent = new \phpseclib3\Math\BigInteger(\ParagonIE\ConstantTime\Base64::decode(b64url2b64($key->e)), 256);
+        $publicKeyRaw = [
+            'modulus' => $modulus,
+            'exponent' => $exponent,
+        ];
+        return \phpseclib3\Crypt\RSA::load($publicKeyRaw);
+    }
+
+    /**
      * @param array $keys
      * @param object $header
      * @throws OpenIDConnectClientException
@@ -870,29 +897,18 @@ class OpenIDConnectClient
         throw new OpenIDConnectClientException('Unable to find a key for RSA');
     }
 
-
     /**
      * @param string $hashtype
-     * @param object $key
+     * @param \phpseclib3\Crypt\RSA $key
      * @param string $payload
      * @param string $signature
      * @param string $signatureType
      * @return bool
      * @throws OpenIDConnectClientException
      */
-    private function verifyRSAJWTsignature(string $hashtype, $key, string $payload, string $signature, string $signatureType): bool {
-        if (!(property_exists($key, 'n') && property_exists($key, 'e'))) {
-            throw new OpenIDConnectClientException('Malformed key object');
-        }
-
-        $modulus = new \phpseclib3\Math\BigInteger(\ParagonIE\ConstantTime\Base64::decode(b64url2b64($key->n)), 256);
-        $exponent = new \phpseclib3\Math\BigInteger(\ParagonIE\ConstantTime\Base64::decode(b64url2b64($key->e)), 256);
-        $publicKeyRaw = [
-            'modulus' => $modulus,
-            'exponent' => $exponent,
-        ];
-
-        $rsa = \phpseclib3\Crypt\RSA::load($publicKeyRaw)
+    private function verifyRSAJWTsignature(string $hashtype, $key, string $payload, string $signature, string $signatureType): bool
+    {
+        $rsa = $key
             ->withHash($hashtype);
         if ($signatureType === 'PSS') {
             $rsa = $rsa->withMGFHash($hashtype)
@@ -927,27 +943,33 @@ class OpenIDConnectClient
      * @throws OpenIDConnectClientException
      * @return bool
      */
-    public function verifyJWTsignature(string $jwt): bool {
+    public function verifyJWTsignature(string $jwt): bool
+    {
         $parts = explode('.', $jwt);
         if (!isset($parts[0])) {
             throw new OpenIDConnectClientException('Error missing part 0 in token');
         }
-        $signature = base64url_decode(array_pop($parts));
-        if (false === $signature || '' === $signature) {
-            throw new OpenIDConnectClientException('Error decoding signature from token');
+
+        try {
+            $signature = base64url_decode(array_pop($parts));
+            if ('' === $signature) {
+                throw new \Exception('Decoded signature is empty string');
+            }
+        } catch (\Exception $e) {
+            throw new OpenIDConnectClientException('Error decoding signature from token', 0, $e);
         }
-        $header = json_decode(base64url_decode($parts[0]));
-        if (null === $header || !\is_object($header)) {
-            throw new OpenIDConnectClientException('Error decoding JSON from token header');
+
+        try {
+            $header = $this->jsonDecode(base64url_decode($parts[0]));
+        } catch (\Exception $e) {
+            throw new OpenIDConnectClientException('Error decoding token header', 0, $e);
         }
-        $payload = implode('.', $parts);
-        $jwks = json_decode($this->fetchURL($this->getProviderConfigValue('jwks_uri')));
-        if ($jwks === NULL) {
-            throw new OpenIDConnectClientException('Error decoding JSON from jwks_uri');
-        }
+
         if (!isset($header->alg)) {
             throw new OpenIDConnectClientException('Error missing signature type in token header');
         }
+
+        $payload = implode('.', $parts);
         switch ($header->alg) {
             case 'RS256':
             case 'PS256':
@@ -955,8 +977,7 @@ class OpenIDConnectClient
             case 'RS512':
                 $hashtype = 'sha' . substr($header->alg, 2);
                 $signatureType = $header->alg === 'PS256' ? 'PSS' : '';
-                $key = $this->getKeyForHeader($jwks->keys, $header);
-
+                $key = $this->fetchKeyForHeader($header);
                 return $this->verifyRSAJWTsignature($hashtype, $key, $payload, $signature, $signatureType);
             case 'HS256':
             case 'HS512':
@@ -1788,5 +1809,25 @@ class OpenIDConnectClient
      */
     public function setCodeChallengeMethod(string $codeChallengeMethod) {
         $this->codeChallengeMethod = $codeChallengeMethod;
+    }
+
+    /**
+     * @param string $json
+     * @return \stdClass
+     * @throws \JsonException
+     * @throws \Exception
+     */
+    private function jsonDecode(string $json): \stdClass
+    {
+        if (defined('JSON_THROW_ON_ERROR')) {
+            $decoded = json_decode($json, false, 512, JSON_THROW_ON_ERROR);
+        } else {
+            // TODO: Error handling
+            $decoded = json_decode($json);
+        }
+        if (!is_object($decoded)) {
+            throw new \Exception("Decoded JSON must be object, " . gettype($decoded) . " type received.");
+        }
+        return $decoded;
     }
 }
