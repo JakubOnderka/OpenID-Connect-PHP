@@ -25,6 +25,28 @@ class TokenVerificationTest extends TestCase
     }
 
     /**
+     * @param string $alg
+     * @param string $jwt
+     * @throws \Jumbojett\OpenIDConnectClientException
+     * @dataProvider providesTokens
+     */
+    public function testTokenVerification_invalidKid(string $alg, string $jwt)
+    {
+        /** @var OpenIDConnectClient | MockObject $client */
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchUrl'])->getMock();
+
+        $certs = json_decode(file_get_contents(__DIR__ . "/data/jwks-$alg.json"));
+        $certs->keys[0]->kid = 'different_kid';
+
+        $client->method('fetchUrl')->willReturn(json_encode($certs));
+        $client->setProviderURL('https://jwt.io/');
+        $client->providerConfigParam(['jwks_uri' => 'https://jwt.io/.well-known/jwks.json']);
+
+        $this->expectExceptionMessage('Unable to find a key for PS256 with kid `konnectd-tokens-signing-key`');
+        $client->verifyJWTsignature($jwt);
+    }
+
+    /**
      * @param string $jwt
      * @return void
      * @throws \Jumbojett\OpenIDConnectClientException
