@@ -1001,9 +1001,11 @@ class OpenIDConnectClient
             case 'RS256':
             case 'PS256':
             case 'RS384':
+            case 'PS384':
             case 'RS512':
+            case 'PS512':
                 $hashtype = 'sha' . substr($header->alg, 2);
-                $isPss = $header->alg === 'PS256';
+                $isPss = $header->alg[0] === 'P';
                 $key = $this->fetchKeyForHeader($header);
                 return $this->verifyRSAJWTsignature($hashtype, $key, $payload, $signature, $isPss);
             case 'HS256':
