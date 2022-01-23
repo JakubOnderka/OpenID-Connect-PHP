@@ -2,6 +2,7 @@
 
 use Jumbojett\OpenIDConnectClient;
 use Jumbojett\OpenIDConnectClientException;
+use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 class OpenIDConnectClientTest extends TestCase
@@ -22,16 +23,18 @@ class OpenIDConnectClientTest extends TestCase
 
     public function testAuthenticateDoesNotThrowExceptionIfClaimsIsMissingNonce()
     {
+        $this->cleanup();
+
         $fakeClaims = new \StdClass();
         $fakeClaims->iss = 'fake-issuer';
         $fakeClaims->aud = 'fake-client-id';
         $fakeClaims->nonce = null;
 
         $_REQUEST['id_token'] = 'abc.123.xyz';
-        $_REQUEST['state'] = false;
-        $_SESSION['openid_connect_state'] = false;
+        $_REQUEST['state'] = 'state';
+        $_SESSION['openid_connect_state'] = 'state';
 
-        /** @var OpenIDConnectClient | PHPUnit_Framework_MockObject_MockObject $client */
+        /** @var OpenIDConnectClient | MockObject $client */
         $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['decodeJWT', 'getProviderConfigValue', 'verifyJWTsignature'])->getMock();
         $client->method('decodeJWT')->willReturn($fakeClaims);
         $client->method('getProviderConfigValue')->with('jwks_uri')->willReturn(true);
@@ -53,5 +56,11 @@ class OpenIDConnectClientTest extends TestCase
                 self::fail( 'OpenIDConnectClientException was thrown when it should not have been.' );
             }
         }
+    }
+
+    private function cleanup()
+    {
+        $_REQUEST = [];
+        $_SESSION = [];
     }
 }
