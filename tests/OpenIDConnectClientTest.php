@@ -144,6 +144,29 @@ class OpenIDConnectClientTest extends TestCase
         $this->assertFalse($client->authenticate());
     }
 
+    public function testFetchWellKnown()
+    {
+        /** @var OpenIDConnectClient | MockObject $client */
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
+        $client->method('fetchURL')
+            ->with($this->equalTo('https://example.com/.well-known/openid-configuration'))
+            ->willReturn('{"issuer":"https://example.cz"}');
+        $client->setProviderURL('https://example.com');
+        $this->assertEquals("https://example.cz", $client->getWellKnownIssuer());
+    }
+
+    public function testFetchWellKnown_with_custom()
+    {
+        /** @var OpenIDConnectClient | MockObject $client */
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
+        $client->method('fetchURL')
+            ->with($this->equalTo('https://example.com/.well-known/openid-configuration?ahoj=svete'))
+            ->willReturn('{"issuer":"https://example.cz"}');
+        $client->setProviderURL('https://example.com');
+        $client->setWellKnownConfigParameters(['ahoj' => 'svete']);
+        $this->assertEquals("https://example.cz", $client->getWellKnownIssuer());
+    }
+
     private function cleanup()
     {
         $_REQUEST = [];
