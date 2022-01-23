@@ -79,7 +79,7 @@ class OpenIDConnectClientException extends \Exception
 
 }
 
-class EcJwkLoader
+abstract class JwkEcFormat
 {
     /**
      * @param $key
@@ -907,7 +907,7 @@ class OpenIDConnectClient
                 throw new OpenIDConnectClientException('Malformed EC key object');
             }
 
-            EC::addFileFormat(EcJwkLoader::class);
+            EC::addFileFormat(JwkEcFormat::class);
             return EC::load($key);
 
         } else if ($key->kty === 'RSA') {

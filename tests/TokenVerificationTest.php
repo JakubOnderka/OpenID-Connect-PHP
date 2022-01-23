@@ -1,12 +1,50 @@
 <?php
 declare(strict_types=1);
 
+use Jumbojett\JwkEcFormat;
 use Jumbojett\OpenIDConnectClient;
+use phpseclib3\Crypt\EC;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 class TokenVerificationTest extends TestCase
 {
+    public function testLoadEcKeyP256()
+    {
+        $key = <<<JSON
+{
+    "kty":"EC",
+    "crv":"P-256",
+    "x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU",
+    "y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0",
+    "kid":"Public key used in JWS spec Appendix A.3 example"
+}
+JSON;
+
+        EC::addFileFormat(JwkEcFormat::class);
+        $loaded = EC::load(json_decode($key));
+        $this->assertInstanceOf(phpseclib3\Crypt\EC\PublicKey::class, $loaded);
+    }
+
+    public function testLoadEcKeyP384()
+    {
+        $key = <<<JSON
+{
+    "kty": "EC",
+    "crv": "P-384",
+    "kid": "44823f3d-0b01-4a6c-a80e-b9d3e8a7226f",
+    "use": "sig",
+    "alg": "ES384",
+    "x": "dw_JGR8nB2I6XveNxUOl2qk699ZPLM2nYI5STSdiEl9avAkrm3CkfYMbrrjr8laB",
+    "y": "Sm3mLE-n1zYNla_aiE3cb3nZsL51RbC7ysw3q8aJLxGm-hx79RPMYpITDjp7kgzy"
+}
+JSON;
+
+        EC::addFileFormat(JwkEcFormat::class);
+        $loaded = EC::load(json_decode($key));
+        $this->assertInstanceOf(phpseclib3\Crypt\EC\PublicKey::class, $loaded);
+    }
+
     /**
      * @param string $alg
      * @param string $jwt
