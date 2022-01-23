@@ -41,12 +41,12 @@ use phpseclib3\Math\BigInteger;
  * which is not the same alphabet as base64.
  * @param string $base64url
  * @return string
- * @throws \Exception
+ * @throws OpenIDConnectClientException
  */
 function base64url_decode(string $base64url): string {
     $decoded = base64_decode(b64url2b64($base64url), true);
     if ($decoded === false) {
-        throw new \Exception("Could not decode string as base64.");
+        throw new OpenIDConnectClientException("Could not decode string as base64.");
     }
     return $decoded;
 }
@@ -1838,7 +1838,7 @@ class OpenIDConnectClient
      * @param string $json
      * @return \stdClass
      * @throws \JsonException
-     * @throws \Exception
+     * @throws OpenIDConnectClientException
      */
     private function jsonDecode(string $json): \stdClass
     {
@@ -1847,9 +1847,12 @@ class OpenIDConnectClient
         } else {
             // TODO: Error handling
             $decoded = json_decode($json);
+            if ($decoded === null) {
+                throw new OpenIDConnectClientException("Could not decode provided JSON");
+            }
         }
         if (!is_object($decoded)) {
-            throw new \Exception("Decoded JSON must be object, " . gettype($decoded) . " type received.");
+            throw new OpenIDConnectClientException("Decoded JSON must be object, " . gettype($decoded) . " type received.");
         }
         return $decoded;
     }
