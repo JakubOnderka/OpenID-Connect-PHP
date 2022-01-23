@@ -628,21 +628,23 @@ class OpenIDConnectClient
      * Start Here
      * @return void
      * @throws OpenIDConnectClientException
+     * @throws \Exception
      */
-    private function requestAuthorization() {
-
+    private function requestAuthorization()
+    {
         $auth_endpoint = $this->getProviderConfigValue('authorization_endpoint');
-        $response_type = 'code';
 
         // Generate and store a nonce in the session
         // The nonce is an arbitrary value
-        $nonce = $this->setNonce($this->generateRandString());
+        $nonce = $this->generateRandString();
+        $this->setNonce($nonce);
 
         // State essentially acts as a session key for OIDC
-        $state = $this->setState($this->generateRandString());
+        $state = $this->generateRandString();
+        $this->setState($state);
 
         $auth_params = array_merge($this->authParams, array(
-            'response_type' => $response_type,
+            'response_type' => 'code',
             'redirect_uri' => $this->getRedirectURL(),
             'client_id' => $this->clientID,
             'nonce' => $nonce,
@@ -651,13 +653,13 @@ class OpenIDConnectClient
         ));
 
         // If the client has been registered with additional scopes
-        if (count($this->scopes) > 0) {
-            $auth_params = array_merge($auth_params, array('scope' => implode(' ', array_merge($this->scopes, array('openid')))));
+        if (!empty($this->scopes)) {
+            $auth_params['scope'] = implode(' ', array_merge($this->scopes, ['openid']));
         }
 
         // If the client has been registered with additional response types
-        if (count($this->responseTypes) > 0) {
-            $auth_params = array_merge($auth_params, array('response_type' => implode(' ', $this->responseTypes)));
+        if (!empty($this->responseTypes)) {
+            $auth_params['response_type'] = implode(' ', $this->responseTypes);
         }
 
         // If the client supports Proof Key for Code Exchange (PKCE)
