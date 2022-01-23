@@ -24,6 +24,8 @@ declare(strict_types=1);
 namespace Jumbojett;
 
 use ParagonIE\ConstantTime\Base64;
+use phpseclib3\Crypt\Common\AsymmetricKey;
+use phpseclib3\Crypt\EC;
 use phpseclib3\Crypt\RSA;
 use phpseclib3\Math\BigInteger;
 
@@ -75,6 +77,54 @@ function b64url2b64(string $base64url): string {
 class OpenIDConnectClientException extends \Exception
 {
 
+}
+
+class EcJwkLoader
+{
+    /**
+     * @param $key
+     * @param $password
+     * @return array|false
+     * @throws OpenIDConnectClientException
+     * @throws \Exception
+     */
+    public static function load($key, $password)
+    {
+        if (!is_object($key)) {
+            return false;
+        }
+
+        $curve = self::getCurve($key->crv);
+
+        $x = new BigInteger(base64url_decode($key->x), 256);
+        $y = new BigInteger(base64url_decode($key->y), 256);
+
+        $QA = [
+            $curve->convertInteger($x),
+            $curve->convertInteger($y),
+        ];
+        if (!$curve->verifyPoint($QA)) {
+            throw new \RuntimeException('Unable to verify that point exists on curve');
+        }
+
+        return compact('curve', 'QA');
+    }
+
+    /**
+     * @throws \Exception
+     */
+    private static function getCurve(string $curveName): \phpseclib3\Crypt\EC\BaseCurves\Base
+    {
+        switch ($curveName) {
+            case 'P-256':
+                return new \phpseclib3\Crypt\EC\Curves\nistp256();
+            case 'P-384':
+                return new \phpseclib3\Crypt\EC\Curves\nistp384();
+            case 'P-521':
+                return new \phpseclib3\Crypt\EC\Curves\nistp521();
+        }
+        throw new \Exception("Unsupported curve $curveName");
+    }
 }
 
 /**
@@ -843,30 +893,46 @@ class OpenIDConnectClient
 
     /**
      * @param object $key
-     * @return RSA
+     * @return AsymmetricKey
      * @throws OpenIDConnectClientException
      */
-    private function convertJWKToPhpseclib($key): RSA
+    private function convertJWKToPhpseclib($key): AsymmetricKey
     {
-        if (!isset($key->n) || !isset($key->e)) {
-            throw new OpenIDConnectClientException('Malformed key object');
+        if (!isset($key->kty)) {
+            throw new OpenIDConnectClientException("Malformed key object, `kty` field is missing");
         }
 
-        $modulus = new BigInteger(Base64::decode(b64url2b64($key->n)), 256);
-        $exponent = new BigInteger(Base64::decode(b64url2b64($key->e)), 256);
-        $publicKeyRaw = [
-            'modulus' => $modulus,
-            'exponent' => $exponent,
-        ];
-        return RSA::load($publicKeyRaw);
+        if ($key->kty === 'EC') {
+            if (!isset($key->x) || !isset($key->y) || !isset($key->crv)) {
+                throw new OpenIDConnectClientException('Malformed EC key object');
+            }
+
+            EC::addFileFormat(EcJwkLoader::class);
+            return EC::load($key);
+
+        } else if ($key->kty === 'RSA') {
+            if (!isset($key->n) || !isset($key->e)) {
+                throw new OpenIDConnectClientException('Malformed RSA key object');
+            }
+
+            $modulus = new BigInteger(Base64::decode(b64url2b64($key->n)), 256);
+            $exponent = new BigInteger(Base64::decode(b64url2b64($key->e)), 256);
+            $publicKeyRaw = [
+                'modulus' => $modulus,
+                'exponent' => $exponent,
+            ];
+            return RSA::load($publicKeyRaw);
+        }
+        throw new OpenIDConnectClientException("Not supported key type $key->kty");
     }
 
     /**
      * @param object $header
-     * @return RSA
+     * @param string $type
+     * @return AsymmetricKey
      * @throws OpenIDConnectClientException
      */
-    private function fetchKeyForHeader($header): RSA
+    private function fetchKeyForHeader($header, string $type): AsymmetricKey
     {
         $jwksUri = $this->getProviderConfigValue('jwks_uri');
         if (!$jwksUri) {
@@ -878,7 +944,7 @@ class OpenIDConnectClient
             $jwks = apcu_fetch($cacheKey);
             if ($jwks) {
                 try {
-                    return $this->convertJWKToPhpseclib($this->getKeyForHeader($jwks->keys, $header));
+                    return $this->convertJWKToPhpseclib($this->getKeyForHeader($jwks->keys, $header, $type));
                 } catch (\Exception $e) {
                     // ignore if key not found and fetch key from server again
                 }
@@ -895,20 +961,21 @@ class OpenIDConnectClient
             apcu_store($cacheKey, $jwks, $this->keyCacheExpiration);
         }
 
-        $key = $this->getKeyForHeader($jwks->keys, $header);
+        $key = $this->getKeyForHeader($jwks->keys, $header, $type);
         return $this->convertJWKToPhpseclib($key);
     }
 
     /**
      * @param array $keys
      * @param object $header
+     * @param string $type 'RSA' or 'EC'
      * @throws OpenIDConnectClientException
      * @return object
      */
-    private function getKeyForHeader(array $keys, $header)
+    private function getKeyForHeader(array $keys, $header, string $type)
     {
         foreach (array_merge($keys, $this->additionalJwks) as $key) {
-            if ($key->kty === 'RSA') {
+            if ($key->kty === $type) {
                 if (!isset($header->kid) || $key->kid === $header->kid) {
                     return $key;
                 }
@@ -921,7 +988,7 @@ class OpenIDConnectClient
         if (isset($header->kid)) {
             throw new OpenIDConnectClientException("Unable to find a key for {$header->alg} with kid `{$header->kid}`");
         }
-        throw new OpenIDConnectClientException('Unable to find a key for RSA');
+        throw new OpenIDConnectClientException("Unable to find a key for $type");
     }
 
     /**
@@ -966,6 +1033,23 @@ class OpenIDConnectClient
     }
 
     /**
+     * @param string $hashtype
+     * @param EC $ec
+     * @param string $payload
+     * @param string $signature
+     * @return bool
+     */
+    private function verifyEcJwtSignature(string $hashtype, EC $ec, string $payload, string $signature): bool
+    {
+        $half = strlen($signature) / 2;
+        $rawSignature = [
+            'r' => new BigInteger(substr($signature, 0, $half), 256),
+            's' => new BigInteger(substr($signature, $half), 256),
+        ];
+        return $ec->withSignatureFormat('raw')->withHash($hashtype)->verify($payload, $rawSignature);
+    }
+
+    /**
      * @param string $jwt encoded JWT
      * @throws OpenIDConnectClientException
      * @return bool
@@ -1006,13 +1090,19 @@ class OpenIDConnectClient
             case 'PS512':
                 $hashtype = 'sha' . substr($header->alg, 2);
                 $isPss = $header->alg[0] === 'P';
-                $key = $this->fetchKeyForHeader($header);
+                $key = $this->fetchKeyForHeader($header, 'RSA');
                 return $this->verifyRSAJWTsignature($hashtype, $key, $payload, $signature, $isPss);
             case 'HS256':
             case 'HS512':
             case 'HS384':
                 $hashtype = 'SHA' . substr($header->alg, 2);
                 return $this->verifyHMACJWTsignature($hashtype, $this->getClientSecret(), $payload, $signature);
+            case 'ES256':
+            case 'ES384':
+            case 'ES512':
+                $hashtype = 'SHA' . substr($header->alg, 2);
+                $key = $this->fetchKeyForHeader($header, 'EC');
+                return $this->verifyEcJwtSignature($hashtype, $key, $payload, $signature);
         }
         throw new OpenIDConnectClientException('No support for signature type: ' . $header->alg);
     }
