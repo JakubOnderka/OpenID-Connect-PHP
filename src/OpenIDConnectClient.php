@@ -249,6 +249,12 @@ class OpenIDConnectClient
     private $pkceAlgs = array('S256' => 'sha256', 'plain' => false);
 
     /**
+     * How long should be stored key in apcu cache in seconds
+     * @var int
+     */
+    private $keyCacheExpiration = 3600;
+
+    /**
      * @param string|null $provider_url string optional
      * @param string|null $client_id  optional
      * @param string|null $client_secret  optional
@@ -842,19 +848,12 @@ class OpenIDConnectClient
     }
 
     /**
-     * @param object $header
+     * @param object $key
      * @return RSA
      * @throws OpenIDConnectClientException
      */
-    private function fetchKeyForHeader($header): RSA
+    private function convertJWKToPhpseclib($key): RSA
     {
-        try {
-            $jwks = $this->jsonDecode($this->fetchURL($this->getProviderConfigValue('jwks_uri')));
-        } catch (\Exception $e) {
-            throw new OpenIDConnectClientException('Error fetching JSON from jwks_uri', 0, $e);
-        }
-        $key = $this->getKeyForHeader($jwks->keys, $header);
-
         if (!isset($key->n) || !isset($key->e)) {
             throw new OpenIDConnectClientException('Malformed key object');
         }
@@ -866,6 +865,41 @@ class OpenIDConnectClient
             'exponent' => $exponent,
         ];
         return RSA::load($publicKeyRaw);
+    }
+
+    /**
+     * @param object $header
+     * @return RSA
+     * @throws OpenIDConnectClientException
+     */
+    private function fetchKeyForHeader($header): RSA
+    {
+        $jwksUri = $this->getProviderConfigValue('jwks_uri');
+
+        if (function_exists('apcu_fetch') && $this->keyCacheExpiration > 0) {
+            $cacheKey = 'openid_connect_' . md5($jwksUri);
+            $jwks = apcu_fetch($cacheKey);
+            if ($jwks) {
+                try {
+                    return $this->convertJWKToPhpseclib($this->getKeyForHeader($jwks->keys, $header));
+                } catch (\Exception $e) {
+                    // ignore if key not found and fetch key from server again
+                }
+            }
+        }
+
+        try {
+            $jwks = $this->jsonDecode($this->fetchURL($jwksUri));
+        } catch (\Exception $e) {
+            throw new OpenIDConnectClientException('Error fetching JSON from jwks_uri', 0, $e);
+        }
+
+        if (isset($cacheKey)) {
+            apcu_store($cacheKey, $jwks, $this->keyCacheExpiration);
+        }
+
+        $key = $this->getKeyForHeader($jwks->keys, $header);
+        return $this->convertJWKToPhpseclib($key);
     }
 
     /**
