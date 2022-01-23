@@ -58,6 +58,34 @@ class OpenIDConnectClientTest extends TestCase
         }
     }
 
+    public function testRequestAuthorization()
+    {
+        $this->cleanup();
+
+        /** @var OpenIDConnectClient | MockObject $client */
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['redirect'])->getMock();
+        $client->method('redirect')->with(
+            $this->callback(function ($value) {
+                $parsed = parse_url($value);
+                $this->assertEquals('https', $parsed['scheme']);
+                $this->assertEquals('example.com', $parsed['host']);
+                parse_str($parsed['query'], $query);
+                $this->assertEquals('code', $query['response_type']);
+                $this->assertEquals('id', $query['client_id']);
+                $this->assertNotEmpty($query['nonce']);
+                $this->assertNotEmpty($query['state']);
+                $this->assertNotEquals($query['nonce'], $query['state']);
+                $this->assertEquals('openid', $query['scope']);
+                return true;
+            })
+        );
+        $client->setClientID('id');
+        $client->providerConfigParam([
+            'authorization_endpoint' => 'https://example.com',
+        ]);
+        $this->assertFalse($client->authenticate());
+    }
+
     private function cleanup()
     {
         $_REQUEST = [];
