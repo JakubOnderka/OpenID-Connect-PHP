@@ -43,12 +43,12 @@ use phpseclib3\Math\BigInteger;
  * which is not the same alphabet as base64.
  * @param string $base64url
  * @return string
- * @throws OpenIDConnectClientException
+ * @throws \RuntimeException
  */
 function base64url_decode(string $base64url): string {
     $decoded = base64_decode(b64url2b64($base64url), true);
     if ($decoded === false) {
-        throw new OpenIDConnectClientException("Could not decode string as base64.");
+        throw new \RuntimeException("Could not decode string as base64.");
     }
     return $decoded;
 }
@@ -85,8 +85,7 @@ abstract class JwkEcFormat
      * @param $key
      * @param $password
      * @return array|false
-     * @throws OpenIDConnectClientException
-     * @throws \Exception
+     * @throws \RuntimeException
      */
     public static function load($key, $password)
     {
@@ -111,7 +110,7 @@ abstract class JwkEcFormat
     }
 
     /**
-     * @throws \Exception
+     * @throws \RuntimeException
      */
     private static function getCurve(string $curveName): \phpseclib3\Crypt\EC\BaseCurves\Base
     {
@@ -123,7 +122,7 @@ abstract class JwkEcFormat
             case 'P-521':
                 return new \phpseclib3\Crypt\EC\Curves\nistp521();
         }
-        throw new \Exception("Unsupported curve $curveName");
+        throw new \RuntimeException("Unsupported curve $curveName");
     }
 }
 
