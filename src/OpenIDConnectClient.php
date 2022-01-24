@@ -71,6 +71,19 @@ function b64url2b64(string $base64url): string {
     return strtr($base64url, '-_', '+/');
 }
 
+if (!function_exists('str_ends_with')) {
+    /**
+     * `str_ends_with` function is available since PHP8,
+     * @param string $haystack
+     * @param string $needle
+     * @return bool
+     */
+    function str_ends_with(string $haystack, string $needle): bool {
+        $needleLen = strlen($needle);
+        return $needleLen === 0 || substr_compare($haystack, $needle, -$needleLen) === 0;
+    }
+}
+
 
 /**
  * OpenIDConnect Exception Class
@@ -551,16 +564,21 @@ class OpenIDConnectClient
     {
         // If the configuration value is not available, attempt to fetch it from a well known config endpoint
         // This is also known as auto "discovery"
-        if(!$this->wellKnown) {
-            $well_known_config_url = rtrim($this->getProviderURL(), '/') . '/.well-known/openid-configuration';
-            if (count($this->wellKnownConfigParameters) > 0){
-                $well_known_config_url .= '?' .  http_build_query($this->wellKnownConfigParameters) ;
+        if (!$this->wellKnown) {
+            if (str_ends_with($this->getProviderURL(), '/.well-known/openid-configuration')) {
+                $wellKnownConfigUrl = $this->getProviderURL();
+            } else {
+                $wellKnownConfigUrl = rtrim($this->getProviderURL(), '/') . '/.well-known/openid-configuration';
             }
-            $this->wellKnown = json_decode($this->fetchURL($well_known_config_url));
+
+            if (!empty($this->wellKnownConfigParameters)) {
+                $wellKnownConfigUrl .= '?' .  http_build_query($this->wellKnownConfigParameters);
+            }
+            $this->wellKnown = json_decode($this->fetchURL($wellKnownConfigUrl));
         }
 
         $value = false;
-        if(isset($this->wellKnown->{$param})){
+        if (isset($this->wellKnown->{$param})){
             $value = $this->wellKnown->{$param};
         }
 

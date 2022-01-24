@@ -21,6 +21,59 @@ class OpenIDConnectClientTest extends TestCase
         self::assertSame('http://domain.test/path/index.php', $client->getRedirectURL());
     }
 
+    public function testWellKnownUrl()
+    {
+        $this->cleanup();
+
+        /** @var OpenIDConnectClient | MockObject $client */
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
+        $client->method('fetchURL')
+            ->with($this->equalTo('https://example.com/.well-known/openid-configuration'))
+            ->willReturn('{"issuer":"issuer"}');
+        $client->setProviderURL('https://example.com');
+        $this->assertEquals('issuer', $client->getWellKnownIssuer());
+    }
+
+    public function testWellKnownUrl_withSlash()
+    {
+        $this->cleanup();
+
+        /** @var OpenIDConnectClient | MockObject $client */
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
+        $client->method('fetchURL')
+            ->with($this->equalTo('https://example.com/.well-known/openid-configuration'))
+            ->willReturn('{"issuer":"issuer"}');
+        $client->setProviderURL('https://example.com/');
+        $this->assertEquals('issuer', $client->getWellKnownIssuer());
+    }
+
+    public function testWellKnownUrl_full()
+    {
+        $this->cleanup();
+
+        /** @var OpenIDConnectClient | MockObject $client */
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
+        $client->method('fetchURL')
+            ->with($this->equalTo('https://example.com/.well-known/openid-configuration'))
+            ->willReturn('{"issuer":"issuer"}');
+        $client->setProviderURL('https://example.com/.well-known/openid-configuration');
+        $this->assertEquals('issuer', $client->getWellKnownIssuer());
+    }
+
+    public function testWellKnownUrl_custom()
+    {
+        $this->cleanup();
+
+        /** @var OpenIDConnectClient | MockObject $client */
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
+        $client->method('fetchURL')
+            ->with($this->equalTo('https://example.com/.well-known/openid-configuration?ahoj=svete'))
+            ->willReturn('{"issuer":"issuer"}');
+        $client->setWellKnownConfigParameters(['ahoj' => 'svete']);
+        $client->setProviderURL('https://example.com');
+        $this->assertEquals('issuer', $client->getWellKnownIssuer());
+    }
+
     public function testAuthenticateDoesNotThrowExceptionIfClaimsIsMissingNonce()
     {
         $this->cleanup();
