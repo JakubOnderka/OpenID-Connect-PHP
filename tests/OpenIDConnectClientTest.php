@@ -199,7 +199,8 @@ class OpenIDConnectClientTest extends TestCase
                 $this->equalTo('https://example.com?schema=openid'),
                 $this->equalTo(null),
                 $this->callback(function (array $a) {
-                    return in_array('Authorization: Bearer aa.bb.cc', $a);
+                    $this->assertContains('Authorization: Bearer aa.bb.cc', $a);
+                    return true;
                 })
             )
             ->willReturn('{"a":"b"}');
@@ -256,6 +257,41 @@ class OpenIDConnectClientTest extends TestCase
         $client->setProviderURL('https://example.com');
         $client->setWellKnownConfigParameters(['ahoj' => 'svete']);
         $this->assertEquals("https://example.cz", $client->getWellKnownIssuer());
+    }
+
+    public function testRequestTokensClientSecretBasic()
+    {
+        $this->cleanup();
+
+        $_REQUEST['id_token'] = 'abc.123.xyz';
+        $_REQUEST['code'] = 'code';
+        $_REQUEST['state'] = 'state';
+        $_SESSION['openid_connect_state'] = 'state';
+
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL', 'verifyJWTsignature', 'verifyJWTclaims'])->getMock();
+        $client->method('verifyJWTsignature')->willReturn(true);
+        $client->method('verifyJWTclaims')->willReturn(true);
+        $client->setClientID('client-id');
+        $client->setClientSecret('client-secret');
+        $client->providerConfigParam([
+            'token_endpoint' => 'https://example.com',
+            'token_endpoint_auth_methods_supported' => ['client_secret_basic'],
+        ]);
+        $client->method('fetchURL')
+            ->with(
+                $this->equalTo('https://example.com'),
+                $this->callback(function (string $post) {
+                    parse_str($post, $parts);
+                    $this->assertEquals('authorization_code', $parts['grant_type']);
+                    $this->assertEquals('code', $parts['code']);
+                    return true;
+                }),
+                $this->callback(function (array $headers) {
+                    $this->assertContains('Authorization: Basic Y2xpZW50LWlkOmNsaWVudC1zZWNyZXQ=', $headers);
+                    return true;
+                })
+            )->willReturn('{"id_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg","access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg"}');
+        $this->assertTrue($client->authenticate());
     }
 
     private function cleanup()
