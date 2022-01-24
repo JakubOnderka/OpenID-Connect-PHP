@@ -26,6 +26,7 @@ namespace Jumbojett;
 use ParagonIE\ConstantTime\Base64;
 use phpseclib3\Crypt\Common\AsymmetricKey;
 use phpseclib3\Crypt\EC;
+use phpseclib3\Crypt\EC\Curves;
 use phpseclib3\Crypt\RSA;
 use phpseclib3\Math\BigInteger;
 
@@ -82,7 +83,7 @@ class OpenIDConnectClientException extends \Exception
 abstract class JwkEcFormat
 {
     /**
-     * @param $key
+     * @param mixed $key
      * @param $password
      * @return array|false
      * @throws \RuntimeException
@@ -112,15 +113,15 @@ abstract class JwkEcFormat
     /**
      * @throws \RuntimeException
      */
-    private static function getCurve(string $curveName): \phpseclib3\Crypt\EC\BaseCurves\Base
+    private static function getCurve(string $curveName): EC\BaseCurves\Base
     {
         switch ($curveName) {
             case 'P-256':
-                return new \phpseclib3\Crypt\EC\Curves\nistp256();
+                return new Curves\nistp256();
             case 'P-384':
-                return new \phpseclib3\Crypt\EC\Curves\nistp384();
+                return new Curves\nistp384();
             case 'P-521':
-                return new \phpseclib3\Crypt\EC\Curves\nistp521();
+                return new Curves\nistp521();
         }
         throw new \RuntimeException("Unsupported curve $curveName");
     }
@@ -523,12 +524,12 @@ class OpenIDConnectClient
      * Get's anything that we need configuration wise including endpoints, and other values
      *
      * @param string $param
-     * @param string|null $default optional
+     * @param mixed|null $default
      * @throws OpenIDConnectClientException
      * @return mixed
      */
-    protected function getProviderConfigValue(string $param, $default = null) {
-
+    protected function getProviderConfigValue(string $param, $default = null)
+    {
         // If the configuration value is not available, attempt to fetch it from a well known config endpoint
         // This is also known as auto "discovery"
         if (!isset($this->providerConfig[$param])) {
@@ -542,12 +543,12 @@ class OpenIDConnectClient
      * Get's anything that we need configuration wise including endpoints, and other values
      *
      * @param string $param
-     * @param string|null $default optional
+     * @param mixed|null $default optional
      * @throws OpenIDConnectClientException
      * @return mixed
      */
-    private function getWellKnownConfigValue(string $param, $default = null) {
-
+    private function getWellKnownConfigValue(string $param, $default = null)
+    {
         // If the configuration value is not available, attempt to fetch it from a well known config endpoint
         // This is also known as auto "discovery"
         if(!$this->wellKnown) {
@@ -891,11 +892,11 @@ class OpenIDConnectClient
     }
 
     /**
-     * @param object $key
+     * @param \stdClass $key
      * @return AsymmetricKey
      * @throws OpenIDConnectClientException
      */
-    private function convertJWKToPhpseclib($key): AsymmetricKey
+    private function convertJwtToAsymmetricKey(\stdClass $key): AsymmetricKey
     {
         if (!isset($key->kty)) {
             throw new OpenIDConnectClientException("Malformed key object, `kty` field is missing");
@@ -943,7 +944,7 @@ class OpenIDConnectClient
             $jwks = apcu_fetch($cacheKey);
             if ($jwks) {
                 try {
-                    return $this->convertJWKToPhpseclib($this->getKeyForHeader($jwks->keys, $header, $type));
+                    return $this->convertJwtToAsymmetricKey($this->getKeyForHeader($jwks->keys, $header, $type));
                 } catch (\Exception $e) {
                     // ignore if key not found and fetch key from server again
                 }
@@ -961,7 +962,7 @@ class OpenIDConnectClient
         }
 
         $key = $this->getKeyForHeader($jwks->keys, $header, $type);
-        return $this->convertJWKToPhpseclib($key);
+        return $this->convertJwtToAsymmetricKey($key);
     }
 
     /**
@@ -1087,21 +1088,21 @@ class OpenIDConnectClient
             case 'PS384':
             case 'RS512':
             case 'PS512':
-                $hashtype = 'sha' . substr($header->alg, 2);
+                $hashType = 'sha' . substr($header->alg, 2);
                 $isPss = $header->alg[0] === 'P';
                 $key = $this->fetchKeyForHeader($header, 'RSA');
-                return $this->verifyRSAJWTsignature($hashtype, $key, $payload, $signature, $isPss);
+                return $this->verifyRSAJWTsignature($hashType, $key, $payload, $signature, $isPss);
             case 'HS256':
             case 'HS512':
             case 'HS384':
-                $hashtype = 'SHA' . substr($header->alg, 2);
-                return $this->verifyHMACJWTsignature($hashtype, $this->getClientSecret(), $payload, $signature);
+                $hashType = 'SHA' . substr($header->alg, 2);
+                return $this->verifyHMACJWTsignature($hashType, $this->getClientSecret(), $payload, $signature);
             case 'ES256':
             case 'ES384':
             case 'ES512':
-                $hashtype = 'SHA' . substr($header->alg, 2);
+                $hashType = 'SHA' . substr($header->alg, 2);
                 $key = $this->fetchKeyForHeader($header, 'EC');
-                return $this->verifyEcJwtSignature($hashtype, $key, $payload, $signature);
+                return $this->verifyEcJwtSignature($hashType, $key, $payload, $signature);
         }
         throw new OpenIDConnectClientException('No support for signature type: ' . $header->alg);
     }
