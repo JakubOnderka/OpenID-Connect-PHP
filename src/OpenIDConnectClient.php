@@ -71,6 +71,17 @@ function b64url2b64(string $base64url): string {
     return strtr($base64url, '-_', '+/');
 }
 
+/**
+ * @param string $str
+ * @return string
+ */
+function base64url_encode(string $str): string {
+    $enc = base64_encode($str);
+    $enc = rtrim($enc, '=');
+    $enc = strtr($enc, '+/', '-_');
+    return $enc;
+}
+
 if (!function_exists('str_ends_with')) {
     /**
      * `str_ends_with` function is available since PHP8,
@@ -692,7 +703,7 @@ class OpenIDConnectClient
      */
     protected function generateRandString(): string
     {
-        return $this->base64url_encode(\random_bytes(16));
+        return base64url_encode(\random_bytes(16));
     }
 
     /**
@@ -1154,7 +1165,7 @@ class OpenIDConnectClient
                 throw new OpenIDConnectClientException("Invalid ID token alg");
             }
             $len = ((int) $bit) / 16;
-            $expectedAtHash = $this->base64url_encode(substr(hash('sha' . $bit, $accessToken, true), 0, $len));
+            $expectedAtHash = base64url_encode(substr(hash('sha' . $bit, $accessToken, true), 0, $len));
         }
 
         if (!($this->issuerValidator)($claims->iss)) {
@@ -1185,18 +1196,6 @@ class OpenIDConnectClient
         }
 
         return true;
-    }
-
-    /**
-     * @param string $str
-     * @return string
-     */
-    protected function base64url_encode(string $str): string
-    {
-        $enc = base64_encode($str);
-        $enc = rtrim($enc, '=');
-        $enc = strtr($enc, '+/', '-_');
-        return $enc;
     }
 
     /**
