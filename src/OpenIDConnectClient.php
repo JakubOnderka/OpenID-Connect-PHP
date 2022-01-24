@@ -101,7 +101,7 @@ abstract class JwkEcFormat
 {
     /**
      * @param mixed $key
-     * @param $password
+     * @param string $password Not used, only public key supported
      * @return array|false
      * @throws \RuntimeException
      */
@@ -130,7 +130,7 @@ abstract class JwkEcFormat
     /**
      * @throws \RuntimeException
      */
-    private static function getCurve(string $curveName): EC\BaseCurves\Base
+    private static function getCurve(string $curveName): EC\BaseCurves\Prime
     {
         switch ($curveName) {
             case 'P-256':
@@ -183,12 +183,12 @@ class OpenIDConnectClient
     private $providerConfig = array();
 
     /**
-     * @var string http proxy if necessary
+     * @var string|null http proxy if necessary
      */
     private $httpProxy;
 
     /**
-     * @var string full system path to the SSL certificate
+     * @var string|null Full system path to the SSL/TLS public certificate
      */
     private $certPath;
 
@@ -218,7 +218,7 @@ class OpenIDConnectClient
     protected $idToken;
 
     /**
-     * @var string stores the token response
+     * @var \stdClass stores the token response
      */
     private $tokenResponse;
 
@@ -306,10 +306,10 @@ class OpenIDConnectClient
     protected $httpUpgradeInsecureRequests = true;
 
     /**
-     * @var string holds code challenge method for PKCE mode
+     * @var string|null holds code challenge method for PKCE mode
      * @see https://tools.ietf.org/html/rfc7636
      */
-    private $codeChallengeMethod = false;
+    private $codeChallengeMethod;
 
     /**
      * @var array holds PKCE supported algorithms
@@ -323,27 +323,30 @@ class OpenIDConnectClient
     private $keyCacheExpiration = 3600;
 
     /**
-     * @param string|null $provider_url string optional
-     * @param string|null $client_id  optional
-     * @param string|null $client_secret  optional
-     * @param string|null $issuer
+     * @param string|null $providerUrl
+     * @param string|null $clientId
+     * @param string|null $clientSecret
+     * @param string|null $issuer If not provided, $providerUrl will be used as issuer
      */
-    public function __construct(string $provider_url = null, string $client_id = null, string $client_secret = null, string $issuer = null) {
-        $this->providerConfig['providerUrl'] = $provider_url;
-        $this->providerConfig['issuer'] = $issuer === null ? $provider_url : $issuer;
-        $this->clientID = $client_id;
-        $this->clientSecret = $client_secret;
+    public function __construct(string $providerUrl = null, string $clientId = null, string $clientSecret = null, string $issuer = null)
+    {
+        $this->providerConfig['providerUrl'] = $providerUrl;
+        $this->providerConfig['issuer'] = $issuer ?: $providerUrl;
+        $this->clientID = $clientId;
+        $this->clientSecret = $clientSecret;
 
-        $this->issuerValidator = function($iss){
-	        return ($iss === $this->getIssuer() || $iss === $this->getWellKnownIssuer() || $iss === $this->getWellKnownIssuer(true));
+        $this->issuerValidator = function(string $iss): bool {
+	        return $iss === $this->getIssuer() || $iss === $this->getWellKnownIssuer() || $iss === $this->getWellKnownIssuer(true);
         };
     }
 
-    public function setProviderURL(string $provider_url) {
+    public function setProviderURL(string $provider_url)
+    {
         $this->providerConfig['providerUrl'] = $provider_url;
     }
 
-    public function setIssuer(string $issuer) {
+    public function setIssuer(string $issuer)
+    {
         $this->providerConfig['issuer'] = $issuer;
     }
 
@@ -602,8 +605,7 @@ class OpenIDConnectClient
     /**
      * Set optional parameters for .well-known/openid-configuration
      *
-     * @param array $param
-     *
+     * @param array $params
      */
     public function setWellKnownConfigParameters(array $params = []){
         $this->wellKnownConfigParameters=$params;
@@ -1061,10 +1063,14 @@ class OpenIDConnectClient
      * @param string $payload
      * @param string $signature
      * @return bool
+     * @throws OpenIDConnectClientException
      */
     private function verifyEcJwtSignature(string $hashtype, EC $ec, string $payload, string $signature): bool
     {
         $half = strlen($signature) / 2;
+        if (!is_int($half)) {
+            throw new OpenIDConnectClientException("Signature has invalid length");
+        }
         $rawSignature = [
             'r' => new BigInteger(substr($signature, 0, $half), 256),
             's' => new BigInteger(substr($signature, $half), 256),
@@ -1431,7 +1437,7 @@ class OpenIDConnectClient
     }
 
     /**
-     * @param string $httpProxy
+     * @param string|null $httpProxy
      */
     public function setHttpProxy(string $httpProxy) {
         $this->httpProxy = $httpProxy;
@@ -1507,21 +1513,23 @@ class OpenIDConnectClient
      *
      * @param callable $issuerValidator
      */
-    public function setIssuerValidator($issuerValidator){
+    public function setIssuerValidator(callable $issuerValidator)
+    {
         $this->issuerValidator = $issuerValidator;
     }
 
     /**
      * @param bool $allowImplicitFlow
      */
-    public function setAllowImplicitFlow(bool $allowImplicitFlow) {
+    public function setAllowImplicitFlow(bool $allowImplicitFlow)
+    {
         $this->allowImplicitFlow = $allowImplicitFlow;
     }
 
     /**
      * @return bool
      */
-    public function getAllowImplicitFlow()
+    public function getAllowImplicitFlow(): bool
     {
         return $this->allowImplicitFlow;
     }
@@ -1540,14 +1548,16 @@ class OpenIDConnectClient
     /**
      * @param string $clientSecret
      */
-    public function setClientSecret(string $clientSecret) {
+    public function setClientSecret(string $clientSecret)
+    {
         $this->clientSecret = $clientSecret;
     }
 
     /**
      * @param string $clientID
      */
-    public function setClientID(string $clientID) {
+    public function setClientID(string $clientID)
+    {
         $this->clientID = $clientID;
     }
 
@@ -1690,7 +1700,7 @@ class OpenIDConnectClient
      * @param string $accessToken
      * @return void
      */
-    public function setAccessToken($accessToken) {
+    public function setAccessToken(string  $accessToken) {
         $this->accessToken = $accessToken;
     }
 
@@ -1744,7 +1754,7 @@ class OpenIDConnectClient
     }
 
     /**
-     * @return string
+     * @return \stdClass
      */
     public function getTokenResponse() {
         return $this->tokenResponse;
@@ -1756,7 +1766,7 @@ class OpenIDConnectClient
      * @param string $nonce
      * @return string
      */
-    protected function setNonce($nonce) {
+    protected function setNonce(string $nonce) {
         $this->setSessionKey('openid_connect_nonce', $nonce);
         return $nonce;
     }
@@ -1785,7 +1795,7 @@ class OpenIDConnectClient
      * @param string $state
      * @return string
      */
-    protected function setState($state) {
+    protected function setState(string $state) {
         $this->setSessionKey('openid_connect_state', $state);
         return $state;
     }
