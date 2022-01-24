@@ -177,6 +177,10 @@ class OpenIDConnectClient
         STATE = 'openid_connect_state',
         CODE_VERIFIER = 'openid_connect_code_verifier';
 
+    // APCu cache keys
+    const KEYS_CACHE = 'openid_connect_key_',
+        WELLKNOWN_CACHE = 'openid_connect_wellknown_';
+
     /**
      * @var string arbitrary id value
      */
@@ -333,10 +337,16 @@ class OpenIDConnectClient
     private $pkceAlgs = array('S256' => 'sha256', 'plain' => false);
 
     /**
-     * How long should be stored key in apcu cache in seconds
+     * How long should be stored wellknown JSON in apcu cache in seconds. Use zero to disable caching.
      * @var int
      */
-    private $keyCacheExpiration = 3600;
+    private $wellknownCacheExpiration = 86400; // one day
+
+    /**
+     * How long should be stored key in apcu cache in seconds, Use zero to disable caching.
+     * @var int
+     */
+    private $keyCacheExpiration = 86400; // one day
 
     /**
      * @param string|null $providerUrl
@@ -580,10 +590,45 @@ class OpenIDConnectClient
     }
 
     /**
+     * @return \stdClass
+     * @throws JsonException
+     * @throws OpenIDConnectClientException
+     */
+    private function fetchWellKnown()
+    {
+        if (str_ends_with($this->getProviderURL(), '/.well-known/openid-configuration')) {
+            $wellKnownConfigUrl = $this->getProviderURL();
+        } else {
+            $wellKnownConfigUrl = rtrim($this->getProviderURL(), '/') . '/.well-known/openid-configuration';
+        }
+
+        if (!empty($this->wellKnownConfigParameters)) {
+            $wellKnownConfigUrl .= '?' .  http_build_query($this->wellKnownConfigParameters);
+        }
+
+        if ($this->wellknownCacheExpiration && function_exists('apcu_fetch')) {
+            $wellKnown = apcu_fetch(self::WELLKNOWN_CACHE . md5($wellKnownConfigUrl));
+            if ($wellKnown) {
+                return $wellKnown;
+            }
+        }
+
+        $wellKnown = $this->jsonDecode($this->fetchURL($wellKnownConfigUrl));
+
+        if ($this->wellknownCacheExpiration && function_exists('apcu_store')) {
+            apcu_store(self::WELLKNOWN_CACHE . md5($wellKnownConfigUrl), $wellKnown, $this->wellknownCacheExpiration);
+        }
+
+        return $wellKnown;
+    }
+
+    /**
      * Get's anything that we need configuration wise including endpoints, and other values
      *
      * @param string $param
      * @param mixed|null $default optional
+     * @return mixed
+     * @throws JsonException
      * @throws OpenIDConnectClientException
      */
     private function getWellKnownConfigValue(string $param, $default = null)
@@ -591,16 +636,7 @@ class OpenIDConnectClient
         // If the configuration value is not available, attempt to fetch it from a well known config endpoint
         // This is also known as auto "discovery"
         if (!$this->wellKnown) {
-            if (str_ends_with($this->getProviderURL(), '/.well-known/openid-configuration')) {
-                $wellKnownConfigUrl = $this->getProviderURL();
-            } else {
-                $wellKnownConfigUrl = rtrim($this->getProviderURL(), '/') . '/.well-known/openid-configuration';
-            }
-
-            if (!empty($this->wellKnownConfigParameters)) {
-                $wellKnownConfigUrl .= '?' .  http_build_query($this->wellKnownConfigParameters);
-            }
-            $this->wellKnown = $this->jsonDecode($this->fetchURL($wellKnownConfigUrl));
+            $this->wellKnown = $this->fetchWellKnown();
         }
 
         $value = false;
@@ -989,7 +1025,7 @@ class OpenIDConnectClient
         }
 
         if (function_exists('apcu_fetch') && $this->keyCacheExpiration > 0) {
-            $cacheKey = 'openid_connect_key_' . md5($jwksUri);
+            $cacheKey = self::KEYS_CACHE . md5($jwksUri);
             $jwks = apcu_fetch($cacheKey);
             if ($jwks) {
                 try {
