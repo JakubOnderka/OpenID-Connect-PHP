@@ -1359,39 +1359,38 @@ class OpenIDConnectClient
 
     /**
      * @param string $url
-     * @param string | null $post_body string If this is set the post type will be POST
+     * @param string|array|null $postBody string If this is set the post type will be POST
      * @param array $headers Extra headers to be send with the request. Format as 'NameHeader: ValueHeader'
+     * @return string
      * @throws OpenIDConnectClientException
-     * @return mixed
      */
-    protected function fetchURL(string $url, $post_body = null, array $headers = array()) {
-
-
-        // OK cool - then let's create a new cURL resource handle
+    protected function fetchURL(string $url, $postBody = null, array $headers = []): string
+    {
         $ch = curl_init();
 
         // Determine whether this is a GET or POST
-        if ($post_body !== null) {
-            // curl_setopt($ch, CURLOPT_POST, 1);
-            // Alows to keep the POST method even after redirect
-            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $post_body);
-
+        if ($postBody !== null) {
             // Default content type is form encoded
-            $content_type = 'application/x-www-form-urlencoded';
+            $contentType = 'application/x-www-form-urlencoded';
 
             // Determine if this is a JSON payload and add the appropriate content type
-            if (is_object(json_decode($post_body))) {
-                $content_type = 'application/json';
+            if (is_array($postBody)) {
+                $postBody = http_build_query($postBody, '', '&', $this->enc_type);
+            } else if (is_string($postBody) && is_object(json_decode($postBody))) {
+                $contentType = 'application/json';
             }
 
-            // Add POST-specific headers
-            $headers[] = "Content-Type: {$content_type}";
+            // curl_setopt($ch, CURLOPT_POST, 1);
+            // Allows to keep the POST method even after redirect
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $postBody);
 
+            // Add POST-specific headers
+            $headers[] = "Content-Type: {$contentType}";
         }
 
         // If we set some headers include them
-        if(count($headers) > 0) {
+        if (!empty($headers)) {
             curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         }
 
@@ -1402,8 +1401,8 @@ class OpenIDConnectClient
             curl_setopt($ch, CURLOPT_PROXY, $this->httpProxy);
         }
 
-        // Include header in result? (0 = yes, 1 = no)
-        curl_setopt($ch, CURLOPT_HEADER, 0);
+        // Include header in result?
+        curl_setopt($ch, CURLOPT_HEADER, false);
 
         // Allows to follow redirect
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
@@ -1416,17 +1415,9 @@ class OpenIDConnectClient
             curl_setopt($ch, CURLOPT_CAINFO, $this->certPath);
         }
 
-        if($this->verifyHost) {
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
-        } else {
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
-        }
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $this->verifyHost ? 2 : 0);
 
-        if($this->verifyPeer) {
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-        } else {
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        }
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $this->verifyPeer);
 
         // Should cURL return or print out the data? (true = return, false = print)
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
