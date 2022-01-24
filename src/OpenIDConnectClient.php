@@ -1250,12 +1250,17 @@ class OpenIDConnectClient
     /**
      * @param string $jwt encoded JWT
      * @param int $section the section we would like to decode
-     * @return object
+     * @return \stdClass
+     * @throws \RuntimeException
+     * @throws JsonException
      */
-    protected function decodeJWT(string $jwt, int $section = 0) {
-
+    protected function decodeJWT(string $jwt, int $section = 0): \stdClass
+    {
         $parts = explode('.', $jwt);
-        return json_decode(base64url_decode($parts[$section]));
+        if (!isset($parts[$section])) {
+            throw new \RuntimeException("Section $section is not included in JWT token");
+        }
+        return $this->jsonDecode(base64url_decode($parts[$section]));
     }
 
     /**
