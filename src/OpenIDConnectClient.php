@@ -172,6 +172,10 @@ if (!function_exists('json_decode')) {
  */
 class OpenIDConnectClient
 {
+    // Session keys
+    const NONCE = 'openid_connect_nonce',
+        STATE = 'openid_connect_state',
+        CODE_VERIFIER = 'openid_connect_code_verifier';
 
     /**
      * @var string arbitrary id value

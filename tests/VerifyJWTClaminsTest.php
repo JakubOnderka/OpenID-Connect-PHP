@@ -31,11 +31,20 @@ namespace {
             $requestTokens->access_token = 'IxC0B76vlWl3fiQhAwZUmD0hr_PPwC9hSIXRdoUslPU=';
 
             /** @var OpenIDConnectClient | MockObject $client */
-            $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['requestTokens', 'getProviderConfigValue', 'verifyJWTsignature', 'getNonce'])->getMock();
+            $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['requestTokens', 'getProviderConfigValue', 'verifyJWTsignature', 'getSessionKey'])->getMock();
             $client->method('requestTokens')->willReturn($requestTokens);
             $client->method('getProviderConfigValue')->willReturn(true);
             $client->method('verifyJWTsignature')->willReturn(true);
-            $client->method('getNonce')->willReturn('min_fine_nonce_verdi');
+
+            $client->method('getSessionKey')->will($this->returnCallback(function (string $key) {
+                if ($key === OpenIDConnectClient::STATE) {
+                    return 'state';
+                } else if ($key === OpenIDConnectClient::NONCE) {
+                    return 'min_fine_nonce_verdi';
+                }
+                throw new InvalidArgumentException($key);
+            }));
+
             $client->setProviderURL('https://jwt.io/');
             $client->setIssuer('https://oidc-yt2.difi.eon.no/idporten-oidc-provider/');
             $client->setClientID('test_rp_yt2');
@@ -52,11 +61,20 @@ namespace {
             $requestTokens->access_token = 'IxC0B76vlWl3fiQhAwZUmD0hr_PPwC9hSIXRdoUslPU=';
 
             /** @var OpenIDConnectClient | MockObject $client */
-            $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['requestTokens', 'getProviderConfigValue', 'verifyJWTsignature', 'getNonce'])->getMock();
+            $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['requestTokens', 'getProviderConfigValue', 'verifyJWTsignature', 'getSessionKey'])->getMock();
             $client->method('requestTokens')->willReturn($requestTokens);
             $client->method('getProviderConfigValue')->willReturn(true);
             $client->method('verifyJWTsignature')->willReturn(true);
-            $client->method('getNonce')->willReturn('min_fine_nonce_verdi2');
+
+            $client->method('getSessionKey')->will($this->returnCallback(function (string $key) {
+               if ($key === OpenIDConnectClient::STATE) {
+                   return 'state';
+               } else if ($key === OpenIDConnectClient::NONCE) {
+                   return 'min_fine_nonce_verdi2';
+               }
+               throw new InvalidArgumentException($key);
+            }));
+
             $client->setProviderURL('https://jwt.io/');
             $client->setIssuer('https://oidc-yt2.difi.eon.no/idporten-oidc-provider/');
             $client->setClientID('test_rp_yt2');
