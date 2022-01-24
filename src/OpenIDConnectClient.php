@@ -879,53 +879,48 @@ class OpenIDConnectClient
         return json_decode($this->fetchURL($token_endpoint, $post_params, $headers));
     }
 
-
     /**
      * Requests ID and Access tokens
      *
      * @param string $code
-     * @return mixed
+     * @return \stdClass
      * @throws OpenIDConnectClientException
+     * @throws JsonException
      */
-    protected function requestTokens(string $code) {
-        $token_endpoint = $this->getProviderConfigValue('token_endpoint');
-        $token_endpoint_auth_methods_supported = $this->getProviderConfigValue('token_endpoint_auth_methods_supported', ['client_secret_basic']);
+    protected function requestTokens(string $code): \stdClass
+    {
+        $tokenEndpointAuthMethodsSupported = $this->getProviderConfigValue('token_endpoint_auth_methods_supported', ['client_secret_basic']);
+        $tokenEndpoint = $this->getProviderConfigValue('token_endpoint');
 
         $headers = [];
 
-        $grant_type = 'authorization_code';
-
-        $token_params = array(
-            'grant_type' => $grant_type,
+        $tokenParams = [
+            'grant_type' => 'authorization_code',
             'code' => $code,
             'redirect_uri' => $this->getRedirectURL(),
             'client_id' => $this->clientID,
-            'client_secret' => $this->clientSecret
-        );
+            'client_secret' => $this->clientSecret,
+        ];
 
-        # Consider Basic authentication if provider config is set this way
-        if (in_array('client_secret_basic', $token_endpoint_auth_methods_supported, true)) {
+        // Consider Basic authentication if provider config is set this way
+        if (in_array('client_secret_basic', $tokenEndpointAuthMethodsSupported, true)) {
             $headers = ['Authorization: Basic ' . base64_encode(urlencode($this->clientID) . ':' . urlencode($this->clientSecret))];
-            unset($token_params['client_secret']);
-	        unset($token_params['client_id']);
+            unset($tokenParams['client_secret']);
+	        unset($tokenParams['client_id']);
         }
 
         $ccm = $this->getCodeChallengeMethod();
         $cv = $this->getSessionKey(self::CODE_VERIFIER);
         if (!empty($ccm) && !empty($cv)) {
             $headers = [];
-            unset($token_params['client_secret']);
-            $token_params = array_merge($token_params, array(
+            unset($tokenParams['client_secret']);
+            $tokenParams = array_merge($tokenParams, [
                 'client_id' => $this->clientID,
-                'code_verifier' => $this->getCodeVerifier()
-            ));
+                'code_verifier' => $cv,
+            ]);
         }
 
-        // Convert token params to string format
-        $token_params = http_build_query($token_params, '', '&', $this->enc_type);
-
-        $this->tokenResponse = json_decode($this->fetchURL($token_endpoint, $token_params, $headers));
-
+        $this->tokenResponse = $this->jsonDecode($this->fetchURL($tokenEndpoint, $tokenParams, $headers));
         return $this->tokenResponse;
     }
 

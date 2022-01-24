@@ -280,10 +280,9 @@ class OpenIDConnectClientTest extends TestCase
         $client->method('fetchURL')
             ->with(
                 $this->equalTo('https://example.com'),
-                $this->callback(function (string $post) {
-                    parse_str($post, $parts);
-                    $this->assertEquals('authorization_code', $parts['grant_type']);
-                    $this->assertEquals('code', $parts['code']);
+                $this->callback(function (array $post) {
+                    $this->assertEquals('authorization_code', $post['grant_type']);
+                    $this->assertEquals('code', $post['code']);
                     return true;
                 }),
                 $this->callback(function (array $headers) {
