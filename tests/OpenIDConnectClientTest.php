@@ -74,6 +74,21 @@ class OpenIDConnectClientTest extends TestCase
         $this->assertEquals('issuer', $client->getWellKnownIssuer());
     }
 
+    public function testWellKnownUrl_invalidJson_throwException()
+    {
+        $this->cleanup();
+
+        /** @var OpenIDConnectClient | MockObject $client */
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
+        $client->method('fetchURL')
+            ->with($this->equalTo('https://example.com/.well-known/openid-configuration'))
+            ->willReturn('{"issuer":"iss');
+        $client->setProviderURL('https://example.com');
+
+        $this->expectException(Jumbojett\JsonException::class);
+        $client->getWellKnownIssuer();
+    }
+
     public function testAuthenticateDoesNotThrowExceptionIfClaimsIsMissingNonce()
     {
         $this->cleanup();

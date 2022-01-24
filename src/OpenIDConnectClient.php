@@ -84,6 +84,10 @@ if (!function_exists('str_ends_with')) {
     }
 }
 
+class JsonException extends \Exception
+{
+
+}
 
 /**
  * OpenIDConnect Exception Class
@@ -574,7 +578,7 @@ class OpenIDConnectClient
             if (!empty($this->wellKnownConfigParameters)) {
                 $wellKnownConfigUrl .= '?' .  http_build_query($this->wellKnownConfigParameters);
             }
-            $this->wellKnown = json_decode($this->fetchURL($wellKnownConfigUrl));
+            $this->wellKnown = $this->jsonDecode($this->fetchURL($wellKnownConfigUrl));
         }
 
         $value = false;
@@ -1945,22 +1949,24 @@ class OpenIDConnectClient
     /**
      * @param string $json
      * @return \stdClass
-     * @throws \JsonException
-     * @throws OpenIDConnectClientException
+     * @throws JsonException
      */
     private function jsonDecode(string $json): \stdClass
     {
         if (defined('JSON_THROW_ON_ERROR')) {
-            $decoded = json_decode($json, false, 512, JSON_THROW_ON_ERROR);
+            try {
+                $decoded = json_decode($json, false, 512, JSON_THROW_ON_ERROR);
+            } catch (\JsonException $e) {
+                throw new JsonException("Could not decode provided JSON", 0, $e);
+            }
         } else {
-            // TODO: Error handling
             $decoded = json_decode($json);
             if ($decoded === null) {
-                throw new OpenIDConnectClientException("Could not decode provided JSON");
+                throw new JsonException("Could not decode provided JSON: " . json_last_error_msg());
             }
         }
         if (!is_object($decoded)) {
-            throw new OpenIDConnectClientException("Decoded JSON must be object, " . gettype($decoded) . " type received.");
+            throw new JsonException("Decoded JSON must be object, " . gettype($decoded) . " type received.");
         }
         return $decoded;
     }
