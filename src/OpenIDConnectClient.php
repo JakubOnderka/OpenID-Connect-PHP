@@ -979,6 +979,7 @@ class OpenIDConnectClient
      * @param string $type
      * @return AsymmetricKey
      * @throws OpenIDConnectClientException
+     * @throws JsonException
      */
     private function fetchKeyForHeader($header, string $type): AsymmetricKey
     {
@@ -988,7 +989,7 @@ class OpenIDConnectClient
         }
 
         if (function_exists('apcu_fetch') && $this->keyCacheExpiration > 0) {
-            $cacheKey = 'openid_connect_' . md5($jwksUri);
+            $cacheKey = 'openid_connect_key_' . md5($jwksUri);
             $jwks = apcu_fetch($cacheKey);
             if ($jwks) {
                 try {
