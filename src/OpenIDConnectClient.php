@@ -1909,22 +1909,16 @@ class OpenIDConnectClient
         unset($_SESSION[$key]);
     }
 
-    public function setUrlEncoding(int $curEncoding)
+    /**
+     * @param int $urlEncoding
+     */
+    public function setUrlEncoding(int $urlEncoding)
     {
-        switch ($curEncoding)
-        {
-            case PHP_QUERY_RFC1738:
-                $this->enc_type = PHP_QUERY_RFC1738;
-                break;
-
-            case PHP_QUERY_RFC3986:
-                $this->enc_type = PHP_QUERY_RFC3986;
-                break;
-
-        	default:
-                break;
+        if (in_array($urlEncoding, [PHP_QUERY_RFC1738, PHP_QUERY_RFC3986], true)) {
+            $this->enc_type = $urlEncoding;
+        } else {
+            throw new \InvalidArgumentException("Unsupported encoding provided");
         }
-
     }
 
     /**
