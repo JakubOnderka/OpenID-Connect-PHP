@@ -1441,9 +1441,10 @@ class OpenIDConnectClient
      * @param bool $appendSlash
      * @return string
      * @throws OpenIDConnectClientException
+     * @throws JsonException
      */
-    public function getWellKnownIssuer(bool $appendSlash = false) {
-
+    public function getWellKnownIssuer(bool $appendSlash = false)
+    {
         return $this->getWellKnownConfigValue('issuer') . ($appendSlash ? '/' : '');
     }
 
@@ -1456,7 +1457,6 @@ class OpenIDConnectClient
         if (!isset($this->providerConfig['issuer'])) {
             throw new OpenIDConnectClientException('The issuer has not been set');
         }
-
         return $this->providerConfig['issuer'];
     }
 
@@ -1584,7 +1584,6 @@ class OpenIDConnectClient
     }
 
     /**
-     *
      * Use this to alter a provider's endpoints and other attributes
      *
      * @param array $array
