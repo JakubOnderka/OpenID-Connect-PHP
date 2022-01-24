@@ -1234,28 +1234,32 @@ class OpenIDConnectClient
      * updated_time     string      Time the End-User's information was last updated, represented as a RFC 3339 [RFC3339] datetime. For example, 2011-01-03T23:58:42+0000.
      *
      * @return mixed
-     *
      * @throws OpenIDConnectClientException
+     * @throws JsonException
      */
-    public function requestUserInfo(string $attribute = null) {
-
-        $user_info_endpoint = $this->getProviderConfigValue('userinfo_endpoint');
-        $schema = 'openid';
-
-        $user_info_endpoint .= '?schema=' . $schema;
-
-        //The accessToken has to be sent in the Authorization header.
-        // Accept json to indicate response type
-        $headers = ["Authorization: Bearer {$this->accessToken}",
-            'Accept: application/json'];
-
-        $user_json = json_decode($this->fetchURL($user_info_endpoint,null,$headers));
-        if ($this->getResponseCode() <> 200) {
-            throw new OpenIDConnectClientException('The communication to retrieve user data has failed with status code '.$this->getResponseCode());
+    public function requestUserInfo(string $attribute = null)
+    {
+        if (!isset($this->accessToken)) {
+            throw new OpenIDConnectClientException("Access token doesn't exists");
         }
-        $this->userInfo = $user_json;
 
-        if($attribute === null) {
+        $userInfoEndpoint = $this->getProviderConfigValue('userinfo_endpoint');
+        $userInfoEndpoint .= '?schema=openid';
+
+        // The accessToken has to be sent in the Authorization header.
+        // Accept json to indicate response type
+        $headers = [
+            "Authorization: Bearer {$this->accessToken}",
+            'Accept: application/json',
+        ];
+
+        $userInfo = $this->jsonDecode($this->fetchURL($userInfoEndpoint,null, $headers));
+        if ($this->getResponseCode() <> 200) {
+            throw new OpenIDConnectClientException('The communication to retrieve user data has failed with status code ' . $this->getResponseCode());
+        }
+        $this->userInfo = $userInfo;
+
+        if ($attribute === null) {
             return $this->userInfo;
         }
 

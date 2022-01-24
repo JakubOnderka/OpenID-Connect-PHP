@@ -183,6 +183,29 @@ class OpenIDConnectClientTest extends TestCase
         $this->assertFalse($client->authenticate());
     }
 
+    public function testRequestUserInfo()
+    {
+        $this->cleanup();
+
+        /** @var OpenIDConnectClient | MockObject $client */
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL', 'getResponseCode'])->getMock();
+        $client->setAccessToken('aa.bb.cc');
+        $client->providerConfigParam([
+            'userinfo_endpoint' => 'https://example.com',
+        ]);
+        $client->method('getResponseCode')->willReturn(200);
+        $client->method('fetchURL')
+            ->with(
+                $this->equalTo('https://example.com?schema=openid'),
+                $this->equalTo(null),
+                $this->callback(function (array $a) {
+                    return in_array('Authorization: Bearer aa.bb.cc', $a);
+                })
+            )
+            ->willReturn('{"a":"b"}');
+        $this->assertEquals('b', $client->requestUserInfo('a'));
+    }
+
     public function testRequestAuthorization_additional_response_types()
     {
         $this->cleanup();
