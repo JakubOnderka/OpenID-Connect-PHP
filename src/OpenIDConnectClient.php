@@ -269,6 +269,7 @@ class OpenIDConnectClient
     protected $timeOut = 60;
 
     /**
+     * This can fix clock skew between systems
      * @var int leeway (seconds)
      */
     private $leeway = 300;
@@ -1130,28 +1131,54 @@ class OpenIDConnectClient
     }
 
     /**
+     * Validate ID token and access token if provided. See https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
      * @param object $claims
      * @param string|null $accessToken
-     * @return bool
+     * @return true
+     * @throws OpenIDConnectClientException
      */
-    protected function verifyJWTclaims($claims, $accessToken = null) {
-        if(isset($claims->at_hash) && isset($accessToken)){
-            if(isset($this->getIdTokenHeader()->alg) && $this->getIdTokenHeader()->alg !== 'none'){
-                $bit = substr($this->getIdTokenHeader()->alg, 2, 3);
-            }else{
-                // TODO: Error case. throw exception???
-                $bit = '256';
+    protected function verifyJWTclaims($claims, string $accessToken = null): bool
+    {
+        if (isset($claims->at_hash) && isset($accessToken)) {
+            $idTokenHeader = $this->getIdTokenHeader();
+            if (isset($idTokenHeader->alg) && $idTokenHeader->alg !== 'none') {
+                $bit = substr($idTokenHeader->alg, 2, 3);
+            } else {
+                // This should never happened, because alg is already checked in verifyJWTsignature method
+                throw new OpenIDConnectClientException("Invalid ID token alg");
             }
-            $len = ((int)$bit)/16;
-            $expected_at_hash = $this->base64url_encode(substr(hash('sha'.$bit, $accessToken, true), 0, $len));
+            $len = ((int) $bit) / 16;
+            $expectedAtHash = $this->base64url_encode(substr(hash('sha' . $bit, $accessToken, true), 0, $len));
         }
-        return (($this->issuerValidator->__invoke($claims->iss))
-            && (($claims->aud === $this->clientID) || in_array($this->clientID, $claims->aud, true))
-            && (!isset($claims->nonce) || $claims->nonce === $this->getNonce())
-            && ( !isset($claims->exp) || ((gettype($claims->exp) === 'integer') && ($claims->exp >= time() - $this->leeway)))
-            && ( !isset($claims->nbf) || ((gettype($claims->nbf) === 'integer') && ($claims->nbf <= time() + $this->leeway)))
-            && ( !isset($claims->at_hash) || !isset($accessToken) || $claims->at_hash === $expected_at_hash )
-        );
+
+        if (!($this->issuerValidator)($claims->iss)) {
+            throw new OpenIDConnectClientException("Could not validate claims, it didn't pass issuer validator");
+        }
+
+        // Audience
+        if ($claims->aud !== $this->clientID && !in_array($this->clientID, (array)$claims->aud, true)) {
+            throw new OpenIDConnectClientException("Could not validate claims, client ID do not match");
+        }
+
+        if (isset($claims->nonce) && $claims->nonce !== $this->getNonce()) {
+            throw new OpenIDConnectClientException("Could not validate claims, nonce do not match");
+        }
+
+        // Expiration Time
+        if (isset($claims->exp) && is_int($claims->exp) && ($claims->exp < time() - $this->leeway)) {
+            throw new OpenIDConnectClientException("Could not validate claims, token is already expired");
+        }
+
+        // Not Before
+        if (isset($claims->nbf) && is_int($claims->nbf) && ($claims->nbf > time() + $this->leeway)) {
+            throw new OpenIDConnectClientException("Could not validate claims, token is not valid yet");
+        }
+
+        if (isset($claims->at_hash) && isset($expectedAtHash) && !hash_equals($expectedAtHash, $claims->at_hash)) {
+            throw new OpenIDConnectClientException("Could not validate claims, at_hash do not match");
+        }
+
+        return true;
     }
 
     /**
@@ -1925,9 +1952,15 @@ class OpenIDConnectClient
     }
 
     /**
-     * @return int
+     * @param int $leeway In seconds
+     * @return void
      */
-    public function getLeeway()
+    public function setLeeway(int $leeway)
+    {
+        $this->leeway = $leeway;
+    }
+
+    public function getLeeway(): int
     {
         return $this->leeway;
     }
