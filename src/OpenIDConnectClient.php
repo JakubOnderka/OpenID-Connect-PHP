@@ -1256,21 +1256,23 @@ class OpenIDConnectClient
             throw new OpenIDConnectClientException("Access token doesn't exists");
         }
 
-        $userInfoEndpoint = $this->getProviderConfigValue('userinfo_endpoint');
-        $userInfoEndpoint .= '?schema=openid';
+        if (!$this->userInfo) {
+            $userInfoEndpoint = $this->getProviderConfigValue('userinfo_endpoint');
+            $userInfoEndpoint .= '?schema=openid';
 
-        // The accessToken has to be sent in the Authorization header.
-        // Accept json to indicate response type
-        $headers = [
-            "Authorization: Bearer {$this->accessToken}",
-            'Accept: application/json',
-        ];
+            // The accessToken has to be sent in the Authorization header.
+            // Accept json to indicate response type
+            $headers = [
+                "Authorization: Bearer {$this->accessToken}",
+                'Accept: application/json',
+            ];
 
-        $userInfo = $this->jsonDecode($this->fetchURL($userInfoEndpoint,null, $headers));
-        if ($this->getResponseCode() <> 200) {
-            throw new OpenIDConnectClientException('The communication to retrieve user data has failed with status code ' . $this->getResponseCode());
+            $userInfo = $this->jsonDecode($this->fetchURL($userInfoEndpoint, null, $headers));
+            if ($this->getResponseCode() <> 200) {
+                throw new OpenIDConnectClientException('The communication to retrieve user data has failed with status code ' . $this->getResponseCode());
+            }
+            $this->userInfo = $userInfo;
         }
-        $this->userInfo = $userInfo;
 
         if ($attribute === null) {
             return $this->userInfo;
