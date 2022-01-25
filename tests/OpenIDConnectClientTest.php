@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 use Jumbojett\OpenIDConnectClient;
 use Jumbojett\OpenIDConnectClientException;
@@ -7,6 +8,29 @@ use PHPUnit\Framework\TestCase;
 
 class OpenIDConnectClientTest extends TestCase
 {
+    public function testSettersAndGetters()
+    {
+        $client = new OpenIDConnectClient();
+
+        $client->setLeeway(1234);
+        $this->assertEquals(1234, $client->getLeeway());
+
+        $client->setTimeout(1234);
+        $this->assertEquals(1234, $client->getTimeout());
+
+        $this->assertNull($client->getClientID());
+        $client->setClientID('client-id');
+        $this->assertEquals('client-id', $client->getClientID());
+
+        $this->assertNull($client->getClientSecret());
+        $client->setClientSecret('client-secret');
+        $this->assertEquals('client-secret', $client->getClientSecret());
+
+        $this->assertFalse($client->getAllowImplicitFlow());
+        $client->setAllowImplicitFlow(true);
+        $this->assertTrue($client->getAllowImplicitFlow());
+    }
+
     /**
      * @return void
      */

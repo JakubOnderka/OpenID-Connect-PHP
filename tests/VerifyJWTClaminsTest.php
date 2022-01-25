@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace Jumbojett {
     function setTime(int $time)
@@ -36,7 +37,7 @@ namespace {
             $client->method('getProviderConfigValue')->willReturn(true);
             $client->method('verifyJWTsignature')->willReturn(true);
 
-            $client->method('getSessionKey')->will($this->returnCallback(function (string $key) {
+            $client->method('getSessionKey')->will($this->returnCallback(function (string $key): string {
                 if ($key === OpenIDConnectClient::STATE) {
                     return 'state';
                 } else if ($key === OpenIDConnectClient::NONCE) {
@@ -66,7 +67,7 @@ namespace {
             $client->method('getProviderConfigValue')->willReturn(true);
             $client->method('verifyJWTsignature')->willReturn(true);
 
-            $client->method('getSessionKey')->will($this->returnCallback(function (string $key) {
+            $client->method('getSessionKey')->will($this->returnCallback(function (string $key): string {
                if ($key === OpenIDConnectClient::STATE) {
                    return 'state';
                } else if ($key === OpenIDConnectClient::NONCE) {
