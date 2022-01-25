@@ -47,7 +47,7 @@ use phpseclib3\Math\BigInteger;
  * @throws \RuntimeException
  */
 function base64url_decode(string $base64url): string {
-    $decoded = base64_decode(b64url2b64($base64url), true);
+    $decoded = base64_decode(base64url_to_base64($base64url), true);
     if ($decoded === false) {
         throw new \RuntimeException("Could not decode string as base64.");
     }
@@ -62,7 +62,7 @@ function base64url_decode(string $base64url): string {
  * @param string $base64url
  * @return string
  */
-function b64url2b64(string $base64url): string {
+function base64url_to_base64(string $base64url): string {
     // "Shouldn't" be necessary, but why not
     $padding = strlen($base64url) % 4;
     if ($padding > 0) {
@@ -994,8 +994,8 @@ class OpenIDConnectClient
                 throw new OpenIDConnectClientException('Malformed RSA key object');
             }
 
-            $modulus = new BigInteger(Base64::decode(b64url2b64($key->n)), 256);
-            $exponent = new BigInteger(Base64::decode(b64url2b64($key->e)), 256);
+            $modulus = new BigInteger(Base64::decode(base64url_to_base64($key->n)), 256);
+            $exponent = new BigInteger(Base64::decode(base64url_to_base64($key->e)), 256);
             $publicKeyRaw = [
                 'modulus' => $modulus,
                 'exponent' => $exponent,
