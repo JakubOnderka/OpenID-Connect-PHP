@@ -23,7 +23,6 @@ declare(strict_types=1);
 
 namespace Jumbojett;
 
-use ParagonIE\ConstantTime\Base64;
 use phpseclib3\Crypt\Common\AsymmetricKey;
 use phpseclib3\Crypt\EC;
 use phpseclib3\Crypt\EC\Curves;
@@ -994,8 +993,9 @@ class OpenIDConnectClient
                 throw new OpenIDConnectClientException('Malformed RSA key object');
             }
 
-            $modulus = new BigInteger(Base64::decode(base64url_to_base64($key->n)), 256);
-            $exponent = new BigInteger(Base64::decode(base64url_to_base64($key->e)), 256);
+            // Decode public key from base64url to binary, we don't need to use constant time impl for public key
+            $modulus = new BigInteger(base64url_decode($key->n), 256);
+            $exponent = new BigInteger(base64url_decode($key->e), 256);
             $publicKeyRaw = [
                 'modulus' => $modulus,
                 'exponent' => $exponent,
