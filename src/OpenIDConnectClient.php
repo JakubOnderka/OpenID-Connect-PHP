@@ -1715,19 +1715,21 @@ class OpenIDConnectClient
     /**
      * @return string|null
      */
-    public function getClientName() {
+    public function getClientName()
+    {
         return $this->clientName;
     }
 
     /**
      * @param string $clientName
      */
-    public function setClientName(string $clientName) {
+    public function setClientName(string $clientName)
+    {
         $this->clientName = $clientName;
     }
 
     /**
-     * @return string
+     * @return string|null
      */
     public function getClientID()
     {
@@ -1924,7 +1926,7 @@ class OpenIDConnectClient
     /**
      * @return array
      */
-    public function getScopes()
+    public function getScopes(): array
     {
         return $this->scopes;
     }
@@ -1948,7 +1950,7 @@ class OpenIDConnectClient
     /**
      * @return callable
      */
-    public function getIssuerValidator()
+    public function getIssuerValidator(): callable
     {
         return $this->issuerValidator;
     }
