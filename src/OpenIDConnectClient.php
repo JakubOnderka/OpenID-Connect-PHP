@@ -1870,14 +1870,20 @@ class OpenIDConnectClient
     protected function startSession()
     {
         if (!isset($_SESSION)) {
-            @session_start();
+            if (!session_start()) {
+                throw new \RuntimeException("Could not start session");
+            }
         }
     }
 
+    /**
+     * @return void
+     */
     protected function commitSession()
     {
-        $this->startSession();
-        session_write_close();
+        if (session_write_close() === false) {
+            throw new \RuntimeException("Could not write session");
+        }
     }
 
     /**
