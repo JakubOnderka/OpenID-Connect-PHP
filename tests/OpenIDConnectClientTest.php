@@ -141,7 +141,9 @@ class OpenIDConnectClientTest extends TestCase
         $_SESSION['openid_connect_state'] = 'state';
 
         /** @var OpenIDConnectClient | MockObject $client */
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['decodeJWT', 'getProviderConfigValue', 'verifyJWTsignature'])->getMock();
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['decodeJWT', 'getProviderConfigValue', 'verifyJWTsignature'])
+            ->getMock();
         $client->method('decodeJWT')->willReturn($fakeClaims);
         $client->method('getProviderConfigValue')->with('jwks_uri')->willReturn(true);
         $client->method('verifyJWTsignature')->willReturn(true);
@@ -169,7 +171,10 @@ class OpenIDConnectClientTest extends TestCase
         $this->cleanup();
 
         /** @var OpenIDConnectClient | MockObject $client */
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['redirect'])->getMock();
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['redirect', 'commitSession'])
+            ->getMock();
+        $client->method('commitSession')->willReturn(true);
         $client->method('redirect')->with(
             $this->callback(function (string $value): bool {
                 $parsed = parse_url($value);
@@ -197,7 +202,10 @@ class OpenIDConnectClientTest extends TestCase
         $this->cleanup();
 
         /** @var OpenIDConnectClient | MockObject $client */
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['redirect'])->getMock();
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['redirect', 'commitSession'])
+            ->getMock();
+        $client->method('commitSession')->willReturn(true);
         $client->method('redirect')->with(
             $this->callback(function (string $value) {
                 $parsed = parse_url($value);
@@ -222,7 +230,10 @@ class OpenIDConnectClientTest extends TestCase
         $this->cleanup();
 
         /** @var OpenIDConnectClient | MockObject $client */
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['redirect'])->getMock();
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['redirect', 'commitSession'])
+            ->getMock();
+        $client->method('commitSession')->willReturn(true);
         $client->method('redirect')->with(
             $this->callback(function (string $value) {
                 $parsed = parse_url($value);
@@ -247,7 +258,10 @@ class OpenIDConnectClientTest extends TestCase
         $this->cleanup();
 
         /** @var OpenIDConnectClient | MockObject $client */
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['redirect'])->getMock();
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['redirect', 'commitSession'])
+            ->getMock();
+        $client->method('commitSession')->willReturn(true);
         $client->method('redirect')->with(
             $this->callback(function ($value) {
                 $parsed = parse_url($value);
@@ -276,7 +290,9 @@ class OpenIDConnectClientTest extends TestCase
         $this->cleanup();
 
         /** @var OpenIDConnectClient | MockObject $client */
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL', 'getResponseCode'])->getMock();
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['fetchURL', 'getResponseCode'])
+            ->getMock();
         $client->setAccessToken('aa.bb.cc');
         $client->providerConfigParam([
             'userinfo_endpoint' => 'https://example.com',
@@ -300,7 +316,10 @@ class OpenIDConnectClientTest extends TestCase
         $this->cleanup();
 
         /** @var OpenIDConnectClient | MockObject $client */
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['redirect'])->getMock();
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['redirect', 'commitSession'])
+            ->getMock();
+        $client->method('commitSession')->willReturn(true);
         $client->method('redirect')->with(
             $this->callback(function ($value) {
                 $parsed = parse_url($value);
@@ -379,6 +398,32 @@ class OpenIDConnectClientTest extends TestCase
                 })
             )->willReturn('{"id_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg","access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg"}');
         $this->assertTrue($client->authenticate());
+    }
+
+    public function testRefreshToken()
+    {
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
+        $client->providerConfigParam([
+            'token_endpoint' => 'https://example.com',
+            'token_endpoint_auth_methods_supported' => ['client_secret_basic'],
+        ]);
+        $client->setClientID('client-id');
+        $client->setClientSecret('client-secret');
+        $client->method('fetchURL')->with(
+            $this->equalTo('https://example.com'),
+            $this->callback(function (array $post): bool {
+                $this->assertEquals('refresh_token', $post['grant_type']);
+                return true;
+            }), $this->callback(function (array $headers): bool {
+                $this->assertContains('Authorization: Basic Y2xpZW50LWlkOmNsaWVudC1zZWNyZXQ=', $headers);
+                return true;
+            })
+        )->willReturn('{"access_token": "access_token", "refresh_token": "refresh_token"}');
+        $token = $client->refreshToken("token");
+        $this->assertTrue(isset($token->access_token));
+        $this->assertTrue(isset($token->refresh_token));
+        $this->assertNotEmpty($client->getAccessToken());
+        $this->assertNotEmpty($client->getRefreshToken());
     }
 
     private function cleanup()

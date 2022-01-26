@@ -921,37 +921,34 @@ class OpenIDConnectClient
     /**
      * Requests Access token with refresh token
      *
-     * @param string $refresh_token
-     * @return mixed
+     * @param string $refreshToken
+     * @return \stdClass
      * @throws OpenIDConnectClientException
+     * @throws JsonException
      */
-    public function refreshToken($refresh_token) {
-        $token_endpoint = $this->getProviderConfigValue('token_endpoint');
-        $token_endpoint_auth_methods_supported = $this->getProviderConfigValue('token_endpoint_auth_methods_supported', ['client_secret_basic']);
+    public function refreshToken(string $refreshToken): \stdClass
+    {
+        $tokenEndpoint = $this->getProviderConfigValue('token_endpoint');
+        $tokenEndpointAuthMethodsSupported = $this->getProviderConfigValue('token_endpoint_auth_methods_supported', ['client_secret_basic']);
 
         $headers = [];
 
-        $grant_type = 'refresh_token';
-
-        $token_params = array(
-            'grant_type' => $grant_type,
-            'refresh_token' => $refresh_token,
+        $tokenParams = [
+            'grant_type' => 'refresh_token',
+            'refresh_token' => $refreshToken,
             'client_id' => $this->clientID,
             'client_secret' => $this->clientSecret,
-            'scope'         => implode(' ', $this->scopes),
-        );
+            'scope' => implode(' ', $this->scopes),
+        ];
 
-        # Consider Basic authentication if provider config is set this way
-        if (in_array('client_secret_basic', $token_endpoint_auth_methods_supported, true)) {
-            $headers = ['Authorization: Basic ' . base64_encode(urlencode($this->clientID) . ':' . urlencode($this->clientSecret))];
-            unset($token_params['client_secret']);
-            unset($token_params['client_id']);
+        // Consider Basic authentication if provider config is set this way
+        if (in_array('client_secret_basic', $tokenEndpointAuthMethodsSupported, true)) {
+            $headers = [$this->basicAuthorizationHeader($this->clientID, $this->clientSecret)];
+            unset($tokenParams['client_secret']);
+            unset($tokenParams['client_id']);
         }
 
-        // Convert token params to string format
-        $token_params = http_build_query($token_params, '', '&', $this->enc_type);
-
-        $json = json_decode($this->fetchURL($token_endpoint, $token_params, $headers));
+        $json = $this->jsonDecode($this->fetchURL($tokenEndpoint, $tokenParams, $headers));
 
         if (isset($json->access_token)) {
             $this->accessToken = $json->access_token;
@@ -1999,6 +1996,16 @@ class OpenIDConnectClient
             throw new \InvalidArgumentException("Invalid code challenge method $codeChallengeMethod");
         }
         $this->codeChallengeMethod = $codeChallengeMethod;
+    }
+
+    /**
+     * @param string $clientId
+     * @param string $clientSecret
+     * @return string
+     */
+    private function basicAuthorizationHeader(string $clientId, string $clientSecret): string
+    {
+        return 'Authorization: Basic ' . base64_encode(urlencode($clientId) . ':' . urlencode($clientSecret));
     }
 
     /**
