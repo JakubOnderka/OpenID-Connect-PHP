@@ -235,6 +235,7 @@ class OpenIDConnectClient
 
     /**
      * @var array holds response types
+     * @see https://datatracker.ietf.org/doc/html/rfc6749#section-3.1.1
      */
     private $responseTypes = [];
 
@@ -361,6 +362,10 @@ class OpenIDConnectClient
         $this->providerConfig['issuer'] = $issuer;
     }
 
+    /**
+     * @param string|array $responseTypes
+     * @return void
+     */
     public function setResponseTypes($responseTypes)
     {
         $this->responseTypes = array_merge($this->responseTypes, (array)$responseTypes);
@@ -382,14 +387,14 @@ class OpenIDConnectClient
         // If we have an authorization code then proceed to request a token
         if (isset($_REQUEST['code'])) {
             $code = $_REQUEST['code'];
-            $token_json = $this->requestTokens($code);
+            $tokenJson = $this->requestTokens($code);
 
             // Throw an error if the server returns one
-            if (isset($token_json->error)) {
-                if (isset($token_json->error_description)) {
-                    throw new OpenIDConnectClientException($token_json->error_description);
+            if (isset($tokenJson->error)) {
+                if (isset($tokenJson->error_description)) {
+                    throw new OpenIDConnectClientException($tokenJson->error_description);
                 }
-                throw new OpenIDConnectClientException('Got response: ' . $token_json->error);
+                throw new OpenIDConnectClientException('Got response: ' . $tokenJson->error);
             }
 
             // Do an OpenID Connect session check
@@ -400,37 +405,37 @@ class OpenIDConnectClient
             // Cleanup state
             $this->unsetSessionKey(self::STATE);
 
-            if (!property_exists($token_json, 'id_token')) {
+            if (!isset($tokenJson->id_token)) {
                 throw new OpenIDConnectClientException('User did not authorize openid scope.');
             }
 
-            $claims = $this->decodeJWT($token_json->id_token, 1);
+            $claims = $this->decodeJWT($tokenJson->id_token, 1);
 
             // Verify the signature
-            if (!$this->verifyJWTsignature($token_json->id_token)) {
+            if (!$this->verifyJWTsignature($tokenJson->id_token)) {
                 throw new OpenIDConnectClientException ('Unable to verify signature');
             }
 
             // Save the id token
-            $this->idToken = $token_json->id_token;
+            $this->idToken = $tokenJson->id_token;
 
             // Save the access token
-            $this->accessToken = $token_json->access_token;
+            $this->accessToken = $tokenJson->access_token;
 
             // If this is a valid claim
-            if ($this->verifyJWTclaims($claims, $token_json->access_token)) {
+            if ($this->verifyJWTclaims($claims, $tokenJson->access_token)) {
                 // Clean up the session a little
                 $this->unsetSessionKey(self::NONCE);
 
                 // Save the full response
-                $this->tokenResponse = $token_json;
+                $this->tokenResponse = $tokenJson;
 
                 // Save the verified claims
                 $this->verifiedClaims = $claims;
 
                 // Save the refresh token, if we got one
-                if (isset($token_json->refresh_token)) {
-                    $this->refreshToken = $token_json->refresh_token;
+                if (isset($tokenJson->refresh_token)) {
+                    $this->refreshToken = $tokenJson->refresh_token;
                 }
 
                 // Success!
@@ -755,14 +760,14 @@ class OpenIDConnectClient
         $state = $this->generateRandString();
         $this->setSessionKey(self::STATE, $state);
 
-        $authParams = array_merge($this->authParams, array(
+        $authParams = array_merge($this->authParams, [
             'response_type' => 'code',
             'redirect_uri' => $this->getRedirectURL(),
             'client_id' => $this->clientID,
             'nonce' => $nonce,
             'state' => $state,
             'scope' => 'openid'
-        ));
+        ]);
 
         // If the client has been registered with additional scopes
         if (!empty($this->scopes)) {
