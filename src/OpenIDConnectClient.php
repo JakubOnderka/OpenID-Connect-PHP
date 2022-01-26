@@ -46,23 +46,12 @@ use phpseclib3\Math\BigInteger;
  * @throws \RuntimeException
  */
 function base64url_decode(string $base64url): string {
-    $decoded = base64_decode(base64url_to_base64($base64url), true);
+    $base64 = strtr($base64url, '-_', '+/');
+    $decoded = base64_decode($base64, true);
     if ($decoded === false) {
         throw new \RuntimeException("Could not decode string as base64.");
     }
     return $decoded;
-}
-
-/**
- * Per RFC4648, "base64 encoding with URL-safe and filename-safe
- * alphabet".  This just replaces characters 62 and 63.  None of the
- * reference implementations seem to restore the padding if necessary,
- * but we'll do it anyway.
- * @param string $base64url
- * @return string
- */
-function base64url_to_base64(string $base64url): string {
-    return strtr($base64url, '-_', '+/');
 }
 
 /**
