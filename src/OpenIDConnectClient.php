@@ -297,7 +297,7 @@ class OpenIDConnectClient
     protected $verifiedClaims;
 
     /**
-     * @var callable validator function for issuer claim
+     * @var \Closure validator function for issuer claim
      */
     private $issuerValidator;
 
@@ -311,6 +311,9 @@ class OpenIDConnectClient
      */
     private $redirectURL;
 
+    /**
+     * @var int
+     */
     protected $enc_type = PHP_QUERY_RFC1738;
 
     /**
@@ -1558,9 +1561,9 @@ class OpenIDConnectClient
      * The given function should accept the issuer string from the JWT claim as the only argument
      * and return true if the issuer is valid, otherwise return false
      *
-     * @param callable $issuerValidator
+     * @param \Closure $issuerValidator
      */
-    public function setIssuerValidator(callable $issuerValidator)
+    public function setIssuerValidator(\Closure $issuerValidator)
     {
         $this->issuerValidator = $issuerValidator;
     }
@@ -1946,9 +1949,9 @@ class OpenIDConnectClient
     }
 
     /**
-     * @return callable
+     * @return \Closure
      */
-    public function getIssuerValidator(): callable
+    public function getIssuerValidator(): \Closure
     {
         return $this->issuerValidator;
     }
