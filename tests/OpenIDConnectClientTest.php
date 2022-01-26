@@ -38,11 +38,11 @@ class OpenIDConnectClientTest extends TestCase
     {
         $client = new OpenIDConnectClient();
 
-        self::assertSame('http:///', $client->getRedirectURL());
+        $this->assertSame('http:///', $client->getRedirectURL());
 
         $_SERVER['SERVER_NAME'] = 'domain.test';
         $_SERVER['REQUEST_URI'] = '/path/index.php?foo=bar&baz#fragment';
-        self::assertSame('http://domain.test/path/index.php', $client->getRedirectURL());
+        $this->assertSame('http://domain.test/path/index.php', $client->getRedirectURL());
     }
 
     public function testWellKnownUrl()
@@ -157,7 +157,7 @@ class OpenIDConnectClientTest extends TestCase
         /** @var OpenIDConnectClient | MockObject $client */
         $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['redirect'])->getMock();
         $client->method('redirect')->with(
-            $this->callback(function ($value) {
+            $this->callback(function (string $value): bool {
                 $parsed = parse_url($value);
                 $this->assertEquals('https', $parsed['scheme']);
                 $this->assertEquals('example.com', $parsed['host']);
@@ -174,6 +174,56 @@ class OpenIDConnectClientTest extends TestCase
         $client->setClientID('id');
         $client->providerConfigParam([
             'authorization_endpoint' => 'https://example.com',
+        ]);
+        $this->assertFalse($client->authenticate());
+    }
+
+    public function testRequestAuthorization_codeChallenge()
+    {
+        $this->cleanup();
+
+        /** @var OpenIDConnectClient | MockObject $client */
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['redirect'])->getMock();
+        $client->method('redirect')->with(
+            $this->callback(function (string $value) {
+                $parsed = parse_url($value);
+                parse_str($parsed['query'], $query);
+                $this->assertEquals('plain', $query['code_challenge_method']);
+                $this->assertGreaterThanOrEqual(43, strlen($query['code_challenge']));
+                $this->assertLessThanOrEqual(128, strlen($query['code_challenge']));
+                return true;
+            })
+        );
+        $client->setClientID('id');
+        $client->setCodeChallengeMethod('plain');
+        $client->providerConfigParam([
+            'authorization_endpoint' => 'https://example.com',
+            'code_challenge_methods_supported' => ['plain', 'S256'],
+        ]);
+        $this->assertFalse($client->authenticate());
+    }
+
+    public function testRequestAuthorization_codeChallengeS256()
+    {
+        $this->cleanup();
+
+        /** @var OpenIDConnectClient | MockObject $client */
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['redirect'])->getMock();
+        $client->method('redirect')->with(
+            $this->callback(function (string $value) {
+                $parsed = parse_url($value);
+                parse_str($parsed['query'], $query);
+                $this->assertEquals('S256', $query['code_challenge_method']);
+                $this->assertGreaterThanOrEqual(43, strlen($query['code_challenge']));
+                $this->assertLessThanOrEqual(128, strlen($query['code_challenge']));
+                return true;
+            })
+        );
+        $client->setClientID('id');
+        $client->setCodeChallengeMethod('S256');
+        $client->providerConfigParam([
+            'authorization_endpoint' => 'https://example.com',
+            'code_challenge_methods_supported' => ['plain', 'S256'],
         ]);
         $this->assertFalse($client->authenticate());
     }
@@ -304,12 +354,12 @@ class OpenIDConnectClientTest extends TestCase
         $client->method('fetchURL')
             ->with(
                 $this->equalTo('https://example.com'),
-                $this->callback(function (array $post) {
+                $this->callback(function (array $post): bool {
                     $this->assertEquals('authorization_code', $post['grant_type']);
                     $this->assertEquals('code', $post['code']);
                     return true;
                 }),
-                $this->callback(function (array $headers) {
+                $this->callback(function (array $headers): bool {
                     $this->assertContains('Authorization: Basic Y2xpZW50LWlkOmNsaWVudC1zZWNyZXQ=', $headers);
                     return true;
                 })

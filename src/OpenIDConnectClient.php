@@ -333,7 +333,7 @@ class OpenIDConnectClient
     /**
      * @var array holds PKCE supported algorithms
      */
-    private $pkceAlgs = array('S256' => 'sha256', 'plain' => false);
+    const PKCE_ALGS = ['S256' => 'sha256', 'plain' => false];
 
     /**
      * How long should be stored wellknown JSON in apcu cache in seconds. Use zero to disable caching.
@@ -593,7 +593,7 @@ class OpenIDConnectClient
      * @throws JsonException
      * @throws OpenIDConnectClientException
      */
-    private function fetchWellKnown()
+    private function fetchWellKnown(): \stdClass
     {
         if (str_ends_with($this->getProviderURL(), '/.well-known/openid-configuration')) {
             $wellKnownConfigUrl = $this->getProviderURL();
@@ -757,7 +757,7 @@ class OpenIDConnectClient
      */
     private function requestAuthorization()
     {
-        $auth_endpoint = $this->getProviderConfigValue('authorization_endpoint');
+        $authEndpoint = $this->getProviderConfigValue('authorization_endpoint');
 
         // Generate and store a nonce in the session
         // The nonce is an arbitrary value
@@ -768,7 +768,7 @@ class OpenIDConnectClient
         $state = $this->generateRandString();
         $this->setSessionKey(self::STATE, $state);
 
-        $auth_params = array_merge($this->authParams, array(
+        $authParams = array_merge($this->authParams, array(
             'response_type' => 'code',
             'redirect_uri' => $this->getRedirectURL(),
             'client_id' => $this->clientID,
@@ -779,34 +779,37 @@ class OpenIDConnectClient
 
         // If the client has been registered with additional scopes
         if (!empty($this->scopes)) {
-            $auth_params['scope'] = implode(' ', array_merge($this->scopes, ['openid']));
+            $authParams['scope'] = implode(' ', array_merge($this->scopes, ['openid']));
         }
 
         // If the client has been registered with additional response types
         if (!empty($this->responseTypes)) {
-            $auth_params['response_type'] = implode(' ', $this->responseTypes);
+            $authParams['response_type'] = implode(' ', $this->responseTypes);
         }
 
         // If the client supports Proof Key for Code Exchange (PKCE)
         $ccm = $this->getCodeChallengeMethod();
         if (!empty($ccm) && in_array($ccm, $this->getProviderConfigValue('code_challenge_methods_supported'), true)) {
-            $codeVerifier = bin2hex(random_bytes(64));
+            $codeVerifier = base64url_encode(random_bytes(32));
             $this->setSessionKey(self::CODE_VERIFIER, $codeVerifier);
-            if (!empty($this->pkceAlgs[$ccm])) {
-                $codeChallenge = rtrim(strtr(base64_encode(hash($this->pkceAlgs[$ccm], $codeVerifier, true)), '+/', '-_'), '=');
+
+            if (!empty(self::PKCE_ALGS[$ccm])) {
+                $codeChallenge = base64url_encode(hash(self::PKCE_ALGS[$ccm], $codeVerifier, true));
             } else {
                 $codeChallenge = $codeVerifier;
             }
-            $auth_params = array_merge($auth_params, array(
+            $authParams = array_merge($authParams, [
                 'code_challenge' => $codeChallenge,
                 'code_challenge_method' => $ccm,
-            ));
+            ]);
         }
 
-        $auth_endpoint .= (strpos($auth_endpoint, '?') === false ? '?' : '&') . http_build_query($auth_params, '', '&', $this->enc_type);
+        // If auth endpoint already contains params, just append &
+        $authEndpoint .= strpos($authEndpoint, '?') === false ? '?' : '&';
+        $authEndpoint .= http_build_query($authParams, '', '&', $this->enc_type);
 
         $this->commitSession();
-        $this->redirect($auth_endpoint);
+        $this->redirect($authEndpoint);
     }
 
     /**
@@ -1978,10 +1981,13 @@ class OpenIDConnectClient
     }
 
     /**
-     * @param string $codeChallengeMethod
+     * @param string|null $codeChallengeMethod
      */
-    public function setCodeChallengeMethod(string $codeChallengeMethod)
+    public function setCodeChallengeMethod($codeChallengeMethod)
     {
+        if ($codeChallengeMethod !== null && !isset(self::PKCE_ALGS[$codeChallengeMethod])) {
+            throw new \InvalidArgumentException("Invalid code challenge method $codeChallengeMethod");
+        }
         $this->codeChallengeMethod = $codeChallengeMethod;
     }
 
