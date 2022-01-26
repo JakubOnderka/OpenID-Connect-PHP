@@ -1783,42 +1783,54 @@ class OpenIDConnectClient
     }
 
     /**
-     * @return object
+     * @return \stdClass
      * @throws JsonException
      * @throws \RuntimeException
      */
-    public function getAccessTokenHeader()
+    public function getAccessTokenHeader(): \stdClass
     {
+        if (!isset($this->accessToken)) {
+            throw new \RuntimeException("Access token not set");
+        }
         return $this->decodeJWT($this->accessToken);
     }
 
     /**
-     * @return object
+     * @return \stdClass
      * @throws JsonException
      * @throws \RuntimeException
      */
-    public function getAccessTokenPayload()
+    public function getAccessTokenPayload(): \stdClass
     {
+        if (!isset($this->accessToken)) {
+            throw new \RuntimeException("Access token not set");
+        }
         return $this->decodeJWT($this->accessToken, 1);
     }
 
     /**
-     * @return object
+     * @return \stdClass
      * @throws JsonException
      * @throws \RuntimeException
      */
-    public function getIdTokenHeader()
+    public function getIdTokenHeader(): \stdClass
     {
+        if (!isset($this->idToken)) {
+            throw new \RuntimeException("ID token not set");
+        }
         return $this->decodeJWT($this->idToken);
     }
 
     /**
-     * @return object
+     * @return \stdClass
      * @throws JsonException
      * @throws \RuntimeException
      */
-    public function getIdTokenPayload()
+    public function getIdTokenPayload(): \stdClass
     {
+        if (!isset($this->idToken)) {
+            throw new \RuntimeException("ID token not set");
+        }
         return $this->decodeJWT($this->idToken, 1);
     }
 
