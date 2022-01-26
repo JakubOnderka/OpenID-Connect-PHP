@@ -156,14 +156,8 @@ class OpenIDConnectClientTest extends TestCase
         $client->setAllowImplicitFlow(true);
         $client->setProviderURL('https://jwt.io/');
 
-        try {
-            $authenticated = $client->authenticate();
-            $this->assertTrue($authenticated);
-        } catch ( OpenIDConnectClientException $e ) {
-            if ( $e->getMessage() === 'Unable to verify JWT claims' ) {
-                self::fail( 'OpenIDConnectClientException was thrown when it should not have been.' );
-            }
-        }
+        $authenticated = $client->authenticate();
+        $this->assertTrue($authenticated);
     }
 
     public function testRequestAuthorization()
