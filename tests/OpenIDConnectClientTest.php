@@ -8,6 +8,20 @@ use PHPUnit\Framework\TestCase;
 
 class OpenIDConnectClientTest extends TestCase
 {
+    public function testBase64url()
+    {
+        $client = new OpenIDConnectClient(); // include
+
+        $binaryString = hash('sha256', '');
+        $encoded = Jumbojett\base64url_encode($binaryString);
+        $decoded = Jumbojett\base64url_decode($encoded);
+        $this->assertEquals($binaryString, $decoded);
+
+        foreach (['=', ' ', '+', '/'] as $char) {
+            $this->assertThat($char, $this->logicalNot($this->stringContains($encoded)));
+        }
+    }
+
     public function testSettersAndGetters()
     {
         $client = new OpenIDConnectClient();
