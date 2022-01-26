@@ -106,7 +106,7 @@ abstract class JwkEcFormat
 {
     /**
      * @param mixed $key
-     * @param string $password Not used, only public key supported
+     * @param string|null $password Not used, only public key supported
      * @return array|false
      * @throws \RuntimeException
      */
@@ -128,8 +128,7 @@ abstract class JwkEcFormat
         if (!$curve->verifyPoint($QA)) {
             throw new \RuntimeException('Unable to verify that point exists on curve');
         }
-
-        return compact('curve', 'QA');
+        return ['curve' => $curve, 'QA' => $QA];
     }
 
     /**
@@ -748,6 +747,7 @@ class OpenIDConnectClient
      * Start Here
      * @return void
      * @throws OpenIDConnectClientException
+     * @throws JsonException
      * @throws \Exception
      */
     private function requestAuthorization()
@@ -1820,7 +1820,7 @@ class OpenIDConnectClient
     }
 
     /**
-     * @return \stdClass
+     * @return \stdClass|null
      */
     public function getTokenResponse()
     {
@@ -1830,7 +1830,7 @@ class OpenIDConnectClient
     /**
      * Get the response code from last action/curl request.
      *
-     * @return int
+     * @return int|null
      */
     public function getResponseCode()
     {
