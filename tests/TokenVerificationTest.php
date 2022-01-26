@@ -58,7 +58,7 @@ JSON;
         $client->method('fetchUrl')->willReturn(file_get_contents(__DIR__ . "/data/jwks-$alg.json"));
         $client->setProviderURL('https://jwt.io/');
         $client->providerConfigParam(['jwks_uri' => 'https://jwt.io/.well-known/jwks.json']);
-        $verified = $client->verifyJWTsignature($jwt);
+        $verified = $client->verifyJwtSignature($jwt);
         $this->assertTrue($verified);
     }
 
@@ -82,7 +82,7 @@ JSON;
 
         $alg = strtoupper($alg);
         $this->expectExceptionMessage("Unable to find a key for $alg with kid `konnectd-tokens-signing-key`");
-        $client->verifyJWTsignature($jwt);
+        $client->verifyJwtSignature($jwt);
     }
 
     /**
@@ -99,11 +99,11 @@ JSON;
         $client->setProviderURL('https://jwt.io/');
         $client->setClientSecret('secret');
         $client->providerConfigParam(['jwks_uri' => 'https://jwt.io/.well-known/jwks.json']);
-        $verified = $client->verifyJWTsignature($jwt);
+        $verified = $client->verifyJwtSignature($jwt);
         $this->assertTrue($verified);
 
         $client->setClientSecret('secret__invalid');
-        $verified = $client->verifyJWTsignature($jwt);
+        $verified = $client->verifyJwtSignature($jwt);
         $this->assertFalse($verified);
     }
 

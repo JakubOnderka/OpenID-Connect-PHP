@@ -412,7 +412,7 @@ class OpenIDConnectClient
             $claims = $this->decodeJWT($tokenJson->id_token, 1);
 
             // Verify the signature
-            if (!$this->verifyJWTsignature($tokenJson->id_token)) {
+            if (!$this->verifyJwtSignature($tokenJson->id_token)) {
                 throw new OpenIDConnectClientException ('Unable to verify signature');
             }
 
@@ -423,7 +423,7 @@ class OpenIDConnectClient
             $this->accessToken = $tokenJson->access_token;
 
             // If this is a valid claim
-            if ($this->verifyJWTclaims($claims, $tokenJson->access_token)) {
+            if ($this->verifyJwtClaims($claims, $tokenJson->access_token)) {
                 // Clean up the session a little
                 $this->unsetSessionKey(self::NONCE);
 
@@ -465,7 +465,7 @@ class OpenIDConnectClient
             $claims = $this->decodeJWT($id_token, 1);
 
             // Verify the signature
-            if (!$this->verifyJWTsignature($id_token)) {
+            if (!$this->verifyJwtSignature($id_token)) {
                 throw new OpenIDConnectClientException ('Unable to verify signature');
             }
 
@@ -473,7 +473,7 @@ class OpenIDConnectClient
             $this->idToken = $id_token;
 
             // If this is a valid claim
-            if ($this->verifyJWTclaims($claims, $accessToken)) {
+            if ($this->verifyJwtClaims($claims, $accessToken)) {
 
                 // Clean up the session a little
                 $this->unsetSessionKey(self::NONCE);
@@ -1064,7 +1064,7 @@ class OpenIDConnectClient
     }
 
     /**
-     * @param string $hashtype
+     * @param string $hashType
      * @param RSA $key
      * @param string $payload
      * @param string $signature
@@ -1072,12 +1072,11 @@ class OpenIDConnectClient
      * @return bool
      * @throws OpenIDConnectClientException
      */
-    private function verifyRSAJWTsignature(string $hashtype, RSA $key, string $payload, string $signature, bool $isPss): bool
+    private function verifyRsaJwtSignature(string $hashType, RSA $key, string $payload, string $signature, bool $isPss): bool
     {
-        $rsa = $key
-            ->withHash($hashtype);
+        $rsa = $key->withHash($hashType);
         if ($isPss) {
-            $rsa = $rsa->withMGFHash($hashtype)
+            $rsa = $rsa->withMGFHash($hashType)
                 ->withPadding(RSA::SIGNATURE_PSS);
         } else {
             $rsa = $rsa->withPadding(RSA::SIGNATURE_PKCS1);
@@ -1086,33 +1085,32 @@ class OpenIDConnectClient
     }
 
     /**
-     * @param string $hashtype
+     * @param string $hashType
      * @param string $key
      * @param string $payload
      * @param string $signature
      * @return bool
      * @throws OpenIDConnectClientException
      */
-    private function verifyHMACJWTsignature(string $hashtype, string $key, string $payload, string $signature): bool
+    private function verifyHmacJwtSignature(string $hashType, string $key, string $payload, string $signature): bool
     {
         if (!function_exists('hash_hmac')) {
             throw new OpenIDConnectClientException('hash_hmac support unavailable.');
         }
 
-        $expected = hash_hmac($hashtype, $payload, $key, true);
-
+        $expected = hash_hmac($hashType, $payload, $key, true);
         return hash_equals($signature, $expected);
     }
 
     /**
-     * @param string $hashtype
+     * @param string $hashType
      * @param EC $ec
      * @param string $payload
      * @param string $signature
      * @return bool
      * @throws OpenIDConnectClientException
      */
-    private function verifyEcJwtSignature(string $hashtype, EC $ec, string $payload, string $signature): bool
+    private function verifyEcJwtSignature(string $hashType, EC $ec, string $payload, string $signature): bool
     {
         $half = strlen($signature) / 2;
         if (!is_int($half)) {
@@ -1122,15 +1120,16 @@ class OpenIDConnectClient
             'r' => new BigInteger(substr($signature, 0, $half), 256),
             's' => new BigInteger(substr($signature, $half), 256),
         ];
-        return $ec->withSignatureFormat('raw')->withHash($hashtype)->verify($payload, $rawSignature);
+        return $ec->withSignatureFormat('raw')->withHash($hashType)->verify($payload, $rawSignature);
     }
 
     /**
      * @param string $jwt encoded JWT
-     * @throws OpenIDConnectClientException
      * @return bool
+     * @throws OpenIDConnectClientException
+     * @throws JsonException
      */
-    public function verifyJWTsignature(string $jwt): bool
+    public function verifyJwtSignature(string $jwt): bool
     {
         $parts = explode('.', $jwt);
         if (!isset($parts[0])) {
@@ -1167,12 +1166,12 @@ class OpenIDConnectClient
                 $hashType = 'sha' . substr($header->alg, 2);
                 $isPss = $header->alg[0] === 'P';
                 $key = $this->fetchKeyForHeader($header, 'RSA');
-                return $this->verifyRSAJWTsignature($hashType, $key, $payload, $signature, $isPss);
+                return $this->verifyRsaJwtSignature($hashType, $key, $payload, $signature, $isPss);
             case 'HS256':
             case 'HS512':
             case 'HS384':
                 $hashType = 'SHA' . substr($header->alg, 2);
-                return $this->verifyHMACJWTsignature($hashType, $this->getClientSecret(), $payload, $signature);
+                return $this->verifyHmacJwtSignature($hashType, $this->getClientSecret(), $payload, $signature);
             case 'ES256':
             case 'ES384':
             case 'ES512':
@@ -1189,8 +1188,9 @@ class OpenIDConnectClient
      * @param string|null $accessToken
      * @return true
      * @throws OpenIDConnectClientException
+     * @throws JsonException
      */
-    protected function verifyJWTclaims($claims, string $accessToken = null): bool
+    protected function verifyJwtClaims($claims, string $accessToken = null): bool
     {
         if (isset($claims->at_hash) && isset($accessToken)) {
             $idTokenHeader = $this->getIdTokenHeader();
@@ -1326,7 +1326,7 @@ class OpenIDConnectClient
      * aud              string  Audience
      * nonce            string  nonce
      * iat              int     Issued At
-     * auth_time        int     Authenatication time
+     * auth_time        int     Authentication time
      * oid              string  Object id
      *
      * @return mixed
@@ -1365,6 +1365,8 @@ class OpenIDConnectClient
                 $postBody = http_build_query($postBody, '', '&', $this->enc_type);
             } else if (is_string($postBody) && is_object(json_decode($postBody))) {
                 $contentType = 'application/json';
+            } else {
+                throw new \InvalidArgumentException("Invalid type for postBody, expected array, string or null value");
             }
 
             // curl_setopt($ch, CURLOPT_POST, 1);
@@ -1435,7 +1437,7 @@ class OpenIDConnectClient
      * @throws OpenIDConnectClientException
      * @throws JsonException
      */
-    public function getWellKnownIssuer(bool $appendSlash = false)
+    public function getWellKnownIssuer(bool $appendSlash = false): string
     {
         return $this->getWellKnownConfigValue('issuer') . ($appendSlash ? '/' : '');
     }
