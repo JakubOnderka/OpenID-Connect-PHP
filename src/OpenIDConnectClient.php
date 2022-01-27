@@ -397,7 +397,7 @@ class OpenIDConnectClient
             // Throw an error if the server returns one
             if (isset($tokenJson->error)) {
                 if (isset($tokenJson->error_description)) {
-                    throw new OpenIDConnectClientException($tokenJson->error_description);
+                    throw new OpenIDConnectClientException('Error received from IdP: ' . $tokenJson->error_description);
                 }
                 throw new OpenIDConnectClientException('Got response: ' . $tokenJson->error);
             }
@@ -418,7 +418,7 @@ class OpenIDConnectClient
 
             // Verify the signature
             if (!$this->verifyJwtSignature($tokenJson->id_token)) {
-                throw new OpenIDConnectClientException ('Unable to verify signature');
+                throw new OpenIDConnectClientException ('Unable to verify signature of ID token');
             }
 
             // Save the id token
