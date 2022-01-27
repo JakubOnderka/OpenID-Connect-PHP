@@ -1217,6 +1217,11 @@ class OpenIDConnectClient
             throw new OpenIDConnectClientException("Could not validate claims, client ID do not match");
         }
 
+        // If an azp (authorized party) Claim is present, the Client SHOULD verify that its client_id is the Claim Value.
+        if (isset($claims->azp) && $claims->azp !== $this->clientID) {
+            throw new OpenIDConnectClientException("Could not validate claims, azp do not match");
+        }
+
         if (isset($claims->nonce) && $claims->nonce !== $this->getSessionKey(self::NONCE)) {
             throw new OpenIDConnectClientException("Could not validate claims, nonce do not match");
         }
