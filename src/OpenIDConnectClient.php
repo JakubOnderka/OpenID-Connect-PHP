@@ -1341,10 +1341,7 @@ class OpenIDConnectClient
                 'Accept: application/json',
             ];
 
-            $userInfo = $this->jsonDecode($this->fetchURL($userInfoEndpoint, null, $headers));
-            if ($this->getResponseCode() <> 200) {
-                throw new OpenIDConnectClientException('The communication to retrieve user data has failed with status code ' . $this->getResponseCode());
-            }
+            $userInfo = $this->fetchJsonOrJwk($userInfoEndpoint, null, $headers);
             $this->userInfo = $userInfo;
         }
 
@@ -1462,6 +1459,28 @@ class OpenIDConnectClient
         }
 
         return $output;
+    }
+
+    /**
+     * @throws OpenIDConnectClientException
+     * @throws JsonException
+     */
+    protected function fetchJsonOrJwk(string $url, $postBody = null, array $headers = []): \stdClass
+    {
+        $response = $this->fetchURL($url, $postBody, $headers);
+        if ($this->ch) {
+            $info = curl_getinfo($this->ch);
+            if ($info['http_code'] !== 200) {
+                throw new OpenIDConnectClientException("Could not fetch $url, error code {$info['response_code']}");
+            }
+            if ($info['content_type'] === 'application/jwt') {
+                if (!$this->verifyJwtSignature($response)) {
+                    throw new OpenIDConnectClientException ('Unable to verify signature');
+                }
+                return $this->decodeJWT($response, 1);
+            }
+        }
+        return $this->jsonDecode($response);
     }
 
     /**
