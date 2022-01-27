@@ -815,67 +815,43 @@ class OpenIDConnectClient
      * @throws OpenIDConnectClientException
      * @throws JsonException
      */
-    public function requestClientCredentialsToken()
+    public function requestClientCredentialsToken(): \stdClass
     {
-        $token_endpoint = $this->getProviderConfigValue('token_endpoint');
+        $postData = [
+            'grant_type' => 'client_credentials',
+        ];
+        if (!empty($this->scopes)) {
+            $postData['scope'] = implode(' ', $this->scopes);
+        }
 
-        $headers = [];
-
-        $grant_type = 'client_credentials';
-
-        $post_data = array(
-            'grant_type'    => $grant_type,
-            'client_id'     => $this->clientID,
-            'client_secret' => $this->clientSecret,
-            'scope'         => implode(' ', $this->scopes)
-        );
-
-        // Convert token params to string format
-        $post_params = http_build_query($post_data, '', '&', $this->enc_type);
-
-        return json_decode($this->fetchURL($token_endpoint, $post_params, $headers));
+        return $this->tokenEndpointRequest($postData);
     }
-
 
     /**
      * Requests a resource owner token
      * (Defined in https://tools.ietf.org/html/rfc6749#section-4.3)
      *
      * @param boolean $bClientAuth Indicates that the Client ID and Secret be used for client authentication
-     * @return mixed
+     * @return \stdClass
      * @throws OpenIDConnectClientException
      * @throws JsonException
      */
-    public function requestResourceOwnerToken($bClientAuth = false)
+    public function requestResourceOwnerToken(bool $bClientAuth = false): \stdClass
     {
-        $token_endpoint = $this->getProviderConfigValue('token_endpoint');
+        $postData = [
+            'grant_type' => 'password',
+            'username' => $this->authParams['username'],
+            'password' => $this->authParams['password'],
+            'scope' => implode(' ', $this->scopes)
+        ];
 
-        $headers = [];
-
-        $grant_type = 'password';
-
-        $post_data = array(
-            'grant_type'    => $grant_type,
-            'username'      => $this->authParams['username'],
-            'password'      => $this->authParams['password'],
-            'scope'         => implode(' ', $this->scopes)
-        );
-
-        //For client authentication include the client values
-        if($bClientAuth) {
-            $token_endpoint_auth_methods_supported = $this->getProviderConfigValue('token_endpoint_auth_methods_supported', ['client_secret_basic']);
-            if (in_array('client_secret_basic', $token_endpoint_auth_methods_supported, true)) {
-                $headers = ['Authorization: Basic ' . base64_encode(urlencode($this->clientID) . ':' . urlencode($this->clientSecret))];
-            } else {
-                $post_data['client_id']     = $this->clientID;
-                $post_data['client_secret'] = $this->clientSecret;
-            }
+        // For client authentication include the client values
+        if ($bClientAuth) {
+            return $this->tokenEndpointRequest($postData);
         }
 
-        // Convert token params to string format
-        $post_params = http_build_query($post_data, '', '&', $this->enc_type);
-
-        return json_decode($this->fetchURL($token_endpoint, $post_params, $headers));
+        $token_endpoint = $this->getProviderConfigValue('token_endpoint');
+        return $this->jsonDecode($this->fetchURL($token_endpoint, $postData));
     }
 
     /**
@@ -888,79 +864,76 @@ class OpenIDConnectClient
      */
     protected function requestTokens(string $code): \stdClass
     {
-        $tokenEndpointAuthMethodsSupported = $this->getProviderConfigValue('token_endpoint_auth_methods_supported', ['client_secret_basic']);
-        if ($this->tokenAuthenticationMethod && !in_array($this->tokenAuthenticationMethod, $tokenEndpointAuthMethodsSupported)) {
-            $supportedMethods = implode(", ", $tokenEndpointAuthMethodsSupported);
-            throw new OpenIDConnectClientException("Token authentication method {$this->tokenAuthenticationMethod} is not supported by IdP. Supported methods are: $supportedMethods");
-        }
-
-        if ($this->tokenAuthenticationMethod === 'client_secret_jwt') {
-            return $this->requestTokensClientSecretJwt($code);
-        }
-
-        $tokenEndpoint = $this->getProviderConfigValue('token_endpoint');
-
-        $headers = [];
         $tokenParams = [
             'grant_type' => 'authorization_code',
             'code' => $code,
             'redirect_uri' => $this->getRedirectURL(),
-            'client_id' => $this->clientID,
-            'client_secret' => $this->clientSecret,
         ];
 
-        // Consider Basic authentication if provider config is set this way
-        if (in_array('client_secret_basic', $tokenEndpointAuthMethodsSupported, true) && $this->tokenAuthenticationMethod !== 'client_secret_post') {
-            $headers = [$this->basicAuthorizationHeader($this->clientID, $this->clientSecret)];
-            unset($tokenParams['client_secret']);
-	        unset($tokenParams['client_id']);
-        }
-
         $ccm = $this->getCodeChallengeMethod();
-        $cv = $this->getSessionKey(self::CODE_VERIFIER);
-        if (!empty($ccm) && !empty($cv)) {
-            $headers = [];
-            unset($tokenParams['client_secret']);
-            $tokenParams = array_merge($tokenParams, [
-                'client_id' => $this->clientID,
-                'code_verifier' => $cv,
-            ]);
+        if (empty($ccm)) {
+            $this->tokenResponse = $this->tokenEndpointRequest($tokenParams);
+            return $this->tokenResponse;
         }
 
-        $this->tokenResponse = $this->jsonDecode($this->fetchURL($tokenEndpoint, $tokenParams, $headers));
+        $cv = $this->getSessionKey(self::CODE_VERIFIER);
+        if (empty($cv)) {
+            throw new OpenIDConnectClientException("Code verifier from session is empty");
+        }
+
+        $tokenParams = array_merge($tokenParams, [
+            'client_id' => $this->clientID,
+            'code_verifier' => $cv,
+        ]);
+
+        $tokenEndpoint = $this->getProviderConfigValue('token_endpoint');
+        $this->tokenResponse = $this->jsonDecode($this->fetchURL($tokenEndpoint, $tokenParams));
         return $this->tokenResponse;
     }
 
     /**
-     * @throws OpenIDConnectClientException
+     * @param array $params
+     * @return \stdClass
      * @throws JsonException
+     * @throws OpenIDConnectClientException
      * @throws \Exception
-     * @see https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication
      */
-    protected function requestTokensClientSecretJwt(string $code): \stdClass
+    protected function tokenEndpointRequest(array $params): \stdClass
     {
         $tokenEndpoint = $this->getProviderConfigValue('token_endpoint');
+        $authMethodsSupported = $this->getProviderConfigValue('token_endpoint_auth_methods_supported', ['client_secret_basic']);
 
-        $time = time();
-        $jwt = $this->createHmacSignedJwt([
-            'iss' => $this->clientID,
-            'sub' => $this->clientID,
-            'aud' => $tokenEndpoint,
-            'jti' => $this->generateRandString(),
-            'exp' => $time + $this->timeOut,
-            'iat' => $time,
-        ], 'HS256', $this->clientSecret);
+        if ($this->tokenAuthenticationMethod && !in_array($this->tokenAuthenticationMethod, $authMethodsSupported)) {
+            $supportedMethods = implode(", ", $authMethodsSupported);
+            throw new OpenIDConnectClientException("Token authentication method {$this->tokenAuthenticationMethod} is not supported by IdP. Supported methods are: $supportedMethods");
+        }
 
-        $tokenParams = [
-            'grant_type' => 'authorization_code',
-            'code' => $code,
-            'redirect_uri' => $this->getRedirectURL(),
-            'client_assertion_type' => 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-            'client_assertion' => $jwt,
-        ];
+        $headers = [];
 
-        $this->tokenResponse = $this->jsonDecode($this->fetchURL($tokenEndpoint, $tokenParams));
-        return $this->tokenResponse;
+        // See https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication
+        if ($this->tokenAuthenticationMethod === 'client_secret_jwt') {
+            $time = time();
+            $jwt = $this->createHmacSignedJwt([
+                'iss' => $this->clientID,
+                'sub' => $this->clientID,
+                'aud' => $tokenEndpoint,
+                'jti' => $this->generateRandString(),
+                'exp' => $time + $this->timeOut,
+                'iat' => $time,
+            ], 'HS256', $this->clientSecret);
+
+            $params['client_assertion_type'] = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
+            $params['client_assertion'] = $jwt;
+        }
+
+        if (in_array('client_secret_basic', $authMethodsSupported, true) && $this->tokenAuthenticationMethod !== 'client_secret_post') {
+            $headers = [$this->basicAuthorizationHeader($this->clientID, $this->clientSecret)];
+        } else { // client_secret_post fallback
+            $params['client_id'] = $this->clientID;
+            $params['client_secret'] = $this->clientSecret;
+        }
+
+        return $this->jsonDecode($this->fetchURL($tokenEndpoint, $params, $headers));
     }
 
     /**
@@ -973,27 +946,13 @@ class OpenIDConnectClient
      */
     public function refreshToken(string $refreshToken): \stdClass
     {
-        $tokenEndpoint = $this->getProviderConfigValue('token_endpoint');
-        $tokenEndpointAuthMethodsSupported = $this->getProviderConfigValue('token_endpoint_auth_methods_supported', ['client_secret_basic']);
-
-        $headers = [];
-
         $tokenParams = [
             'grant_type' => 'refresh_token',
             'refresh_token' => $refreshToken,
-            'client_id' => $this->clientID,
-            'client_secret' => $this->clientSecret,
             'scope' => implode(' ', $this->scopes),
         ];
 
-        // Consider Basic authentication if provider config is set this way
-        if (in_array('client_secret_basic', $tokenEndpointAuthMethodsSupported, true)) {
-            $headers = [$this->basicAuthorizationHeader($this->clientID, $this->clientSecret)];
-            unset($tokenParams['client_secret']);
-            unset($tokenParams['client_id']);
-        }
-
-        $json = $this->jsonDecode($this->fetchURL($tokenEndpoint, $tokenParams, $headers));
+        $json = $this->tokenEndpointRequest($tokenParams);
 
         if (isset($json->access_token)) {
             $this->accessToken = $json->access_token;
