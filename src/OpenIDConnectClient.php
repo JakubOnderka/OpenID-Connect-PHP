@@ -3,9 +3,11 @@ declare(strict_types=1);
 /**
  *
  * Copyright MITRE 2020
+ * Copyright Jakub Onderka 2022
  *
- * OpenIDConnectClient for PHP5
+ * OpenIDConnectClient for PHP7
  * Author: Michael Jett <mjett@mitre.org>
+ *         Jakub Onderka <jakub.onderka@gmail.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License. You may obtain
@@ -21,7 +23,7 @@ declare(strict_types=1);
  *
  */
 
-namespace Jumbojett;
+namespace JakubOnderka;
 
 use phpseclib3\Crypt\Common\AsymmetricKey;
 use phpseclib3\Crypt\EC;

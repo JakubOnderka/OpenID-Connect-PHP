@@ -1,8 +1,8 @@
 <?php
 declare(strict_types=1);
 
-use Jumbojett\JwkEcFormat;
-use Jumbojett\OpenIDConnectClient;
+use JakubOnderka\JwkEcFormat;
+use JakubOnderka\OpenIDConnectClient;
 use phpseclib3\Crypt\EC;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -48,7 +48,7 @@ JSON;
     /**
      * @param string $alg
      * @param string $jwt
-     * @throws \Jumbojett\OpenIDConnectClientException
+     * @throws \JakubOnderka\OpenIDConnectClientException
      * @dataProvider providesTokens
      */
     public function testTokenVerification(string $alg, string $jwt)
@@ -65,7 +65,7 @@ JSON;
     /**
      * @param string $alg
      * @param string $jwt
-     * @throws \Jumbojett\OpenIDConnectClientException
+     * @throws \JakubOnderka\OpenIDConnectClientException
      * @dataProvider providesTokens
      */
     public function testTokenVerification_invalidKid(string $alg, string $jwt)
@@ -88,7 +88,7 @@ JSON;
     /**
      * @param string $jwt
      * @return void
-     * @throws \Jumbojett\OpenIDConnectClientException
+     * @throws \JakubOnderka\OpenIDConnectClientException
      * @dataProvider providesHsTokens
      */
     public function testHsTokenVerification(string $jwt)

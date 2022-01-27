@@ -1,8 +1,8 @@
 <?php
 declare(strict_types=1);
 
-use Jumbojett\OpenIDConnectClient;
-use Jumbojett\OpenIDConnectClientException;
+use JakubOnderka\OpenIDConnectClient;
+use JakubOnderka\OpenIDConnectClientException;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -13,8 +13,8 @@ class OpenIDConnectClientTest extends TestCase
         $client = new OpenIDConnectClient(); // include
 
         $binaryString = hash('sha256', '');
-        $encoded = Jumbojett\base64url_encode($binaryString);
-        $decoded = Jumbojett\base64url_decode($encoded);
+        $encoded = JakubOnderka\base64url_encode($binaryString);
+        $decoded = JakubOnderka\base64url_decode($encoded);
         $this->assertEquals($binaryString, $decoded);
 
         foreach (['=', ' ', '+', '/'] as $char) {
@@ -123,7 +123,7 @@ class OpenIDConnectClientTest extends TestCase
             ->willReturn('{"issuer":"iss');
         $client->setProviderURL('https://example.com');
 
-        $this->expectException(Jumbojett\JsonException::class);
+        $this->expectException(JakubOnderka\JsonException::class);
         $client->getWellKnownIssuer();
     }
 

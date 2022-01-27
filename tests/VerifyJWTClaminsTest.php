@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Jumbojett {
+namespace JakubOnderka {
     function setTime(int $time)
     {
         global $TIME;
@@ -17,7 +17,7 @@ namespace Jumbojett {
 }
 
 namespace {
-    use Jumbojett\OpenIDConnectClient;
+    use JakubOnderka\OpenIDConnectClient;
     use PHPUnit\Framework\MockObject\MockObject;
     use PHPUnit\Framework\TestCase;
 
@@ -49,7 +49,7 @@ namespace {
             $client->setProviderURL('https://jwt.io/');
             $client->setIssuer('https://oidc-yt2.difi.eon.no/idporten-oidc-provider/');
             $client->setClientID('test_rp_yt2');
-            Jumbojett\setTime(1497605382);
+            JakubOnderka\setTime(1497605382);
             $this->assertTrue($client->authenticate());
         }
 
@@ -79,7 +79,7 @@ namespace {
             $client->setProviderURL('https://jwt.io/');
             $client->setIssuer('https://oidc-yt2.difi.eon.no/idporten-oidc-provider/');
             $client->setClientID('test_rp_yt2');
-            Jumbojett\setTime(1497605382);
+            JakubOnderka\setTime(1497605382);
 
             $this->expectExceptionMessage('Could not validate claims, nonce do not match');
             $client->authenticate();
@@ -97,7 +97,7 @@ namespace {
             $client->setProviderURL('https://jwt.io/');
             $client->setIssuer('accounts.google.com');
             $client->setClientID('407408718192.apps.googleusercontent.com');
-            Jumbojett\setTime(1432086478);
+            JakubOnderka\setTime(1432086478);
             $this->assertTrue($client->authenticate());
         }
 
@@ -116,7 +116,7 @@ namespace {
             $client->setProviderURL('https://jwt.io/');
             $client->setIssuer('accounts.google.com');
             $client->setClientID('407408718192.apps.googleusercontent.com');
-            Jumbojett\setTime(1432086478);
+            JakubOnderka\setTime(1432086478);
 
             $this->expectExceptionMessage('Could not validate claims, at_hash do not match');
             $client->authenticate();
@@ -134,7 +134,7 @@ namespace {
             $client->setProviderURL('https://jwt.io/');
             $client->setIssuer('accounts.google.com');
             $client->setClientID('407408718192.apps.googleusercontent.com');
-            Jumbojett\setTime(time());
+            JakubOnderka\setTime(time());
 
             $this->expectExceptionMessage('Could not validate claims, token is already expired');
             $client->authenticate();
@@ -153,7 +153,7 @@ namespace {
             $client->setIssuer('accounts.google.com');
             $client->setClientID('407408718192.apps.googleusercontent.com');
             $client->setLeeway(0);
-            Jumbojett\setTime(1432086479);
+            JakubOnderka\setTime(1432086479);
 
             $this->expectExceptionMessage('Could not validate claims, token is already expired');
             $client->authenticate();
@@ -171,7 +171,7 @@ namespace {
             $client->setProviderURL('https://jwt.io/');
             $client->setIssuer('accounts.google.com');
             $client->setClientID('407408718192.apps.googleusercontent.com___INVALID');
-            Jumbojett\setTime(time());
+            JakubOnderka\setTime(time());
 
             $this->expectExceptionMessage('Could not validate claims, client ID do not match');
             $client->authenticate();
