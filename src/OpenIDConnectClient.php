@@ -335,6 +335,11 @@ class OpenIDConnectClient
     private $keyCacheExpiration = 86400; // one day
 
     /**
+     * @var string|null
+     */
+    private $tokenAuthenticationMethod;
+
+    /**
      * @param string|null $providerUrl
      * @param string|null $clientId
      * @param string|null $clientSecret
@@ -884,10 +889,18 @@ class OpenIDConnectClient
     protected function requestTokens(string $code): \stdClass
     {
         $tokenEndpointAuthMethodsSupported = $this->getProviderConfigValue('token_endpoint_auth_methods_supported', ['client_secret_basic']);
+        if ($this->tokenAuthenticationMethod && !in_array($this->tokenAuthenticationMethod, $tokenEndpointAuthMethodsSupported)) {
+            $supportedMethods = implode(", ", $tokenEndpointAuthMethodsSupported);
+            throw new OpenIDConnectClientException("Token authentication method {$this->tokenAuthenticationMethod} is not supported by IdP. Supported methods are: $supportedMethods");
+        }
+
+        if ($this->tokenAuthenticationMethod === 'client_secret_jwt') {
+            return $this->requestTokensClientSecretJwt($code);
+        }
+
         $tokenEndpoint = $this->getProviderConfigValue('token_endpoint');
 
         $headers = [];
-
         $tokenParams = [
             'grant_type' => 'authorization_code',
             'code' => $code,
@@ -897,8 +910,8 @@ class OpenIDConnectClient
         ];
 
         // Consider Basic authentication if provider config is set this way
-        if (in_array('client_secret_basic', $tokenEndpointAuthMethodsSupported, true)) {
-            $headers = ['Authorization: Basic ' . base64_encode(urlencode($this->clientID) . ':' . urlencode($this->clientSecret))];
+        if (in_array('client_secret_basic', $tokenEndpointAuthMethodsSupported, true) && $this->tokenAuthenticationMethod !== 'client_secret_post') {
+            $headers = [$this->basicAuthorizationHeader($this->clientID, $this->clientSecret)];
             unset($tokenParams['client_secret']);
 	        unset($tokenParams['client_id']);
         }
@@ -915,6 +928,38 @@ class OpenIDConnectClient
         }
 
         $this->tokenResponse = $this->jsonDecode($this->fetchURL($tokenEndpoint, $tokenParams, $headers));
+        return $this->tokenResponse;
+    }
+
+    /**
+     * @throws OpenIDConnectClientException
+     * @throws JsonException
+     * @throws \Exception
+     * @see https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication
+     */
+    protected function requestTokensClientSecretJwt(string $code): \stdClass
+    {
+        $tokenEndpoint = $this->getProviderConfigValue('token_endpoint');
+
+        $time = time();
+        $jwt = $this->createHmacSignedJwt([
+            'iss' => $this->clientID,
+            'sub' => $this->clientID,
+            'aud' => $tokenEndpoint,
+            'jti' => $this->generateRandString(),
+            'exp' => $time + $this->timeOut,
+            'iat' => $time,
+        ], 'HS256', $this->clientSecret);
+
+        $tokenParams = [
+            'grant_type' => 'authorization_code',
+            'code' => $code,
+            'redirect_uri' => $this->getRedirectURL(),
+            'client_assertion_type' => 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+            'client_assertion' => $jwt,
+        ];
+
+        $this->tokenResponse = $this->jsonDecode($this->fetchURL($tokenEndpoint, $tokenParams));
         return $this->tokenResponse;
     }
 
@@ -2001,6 +2046,16 @@ class OpenIDConnectClient
     }
 
     /**
+     *
+     * @param string|null $tokenAuthenticationMethod
+     * @return void
+     */
+    public function setTokenAuthenticationMethod($tokenAuthenticationMethod)
+    {
+        $this->tokenAuthenticationMethod = $tokenAuthenticationMethod;
+    }
+
+    /**
      * @param string $clientId
      * @param string $clientSecret
      * @return string
@@ -2033,5 +2088,28 @@ class OpenIDConnectClient
             throw new JsonException("Decoded JSON must be object, " . gettype($decoded) . " type received.");
         }
         return $decoded;
+    }
+
+    /**
+     * @param array $payload
+     * @param string $hashAlg
+     * @param string $secret
+     * @return string
+     */
+    private function createHmacSignedJwt(array $payload, string $hashAlg, string $secret): string
+    {
+        if (!in_array($hashAlg, ['HS256', 'HS384', 'HS512'])) {
+            throw new \InvalidArgumentException("Invalid hash algorithm $hashAlg");
+        }
+
+        $header = [
+            'alg' => $hashAlg,
+            'typ' => 'JWT',
+        ];
+        $header = base64url_encode(json_encode($header));
+        $payload = base64url_encode(json_encode($payload));
+        $hmac = hash_hmac('sha' . substr($hashAlg, 2), "$header.$payload", $secret, true);
+        $signature = base64url_encode($hmac);
+        return "$header.$payload.$signature";
     }
 }

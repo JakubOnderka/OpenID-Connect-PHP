@@ -420,6 +420,36 @@ class OpenIDConnectClientTest extends TestCase
         $this->assertNotEmpty($client->getRefreshToken());
     }
 
+    public function testRequestTokensClientSecretJwt()
+    {
+        $this->cleanup();
+
+        $_REQUEST['id_token'] = 'abc.123.xyz';
+        $_REQUEST['code'] = 'code';
+        $_REQUEST['state'] = 'state';
+        $_SESSION['openid_connect_state'] = 'state';
+
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL', 'verifyJWTsignature', 'verifyJWTclaims'])->getMock();
+        $client->method('verifyJWTsignature')->willReturn(true);
+        $client->method('verifyJWTclaims')->willReturn(true);
+        $client->setTokenAuthenticationMethod('client_secret_jwt');
+        $client->setClientID('client-id');
+        $client->setClientSecret('client-secret');
+        $client->providerConfigParam([
+            'token_endpoint' => 'https://example.com',
+            'token_endpoint_auth_methods_supported' => ['client_secret_jwt'],
+        ]);
+        $client->method('fetchURL')
+            ->with($this->equalTo('https://example.com'), $this->callback(function (array $post) use ($client) {
+                $this->assertEquals('authorization_code', $post['grant_type']);
+                $this->assertEquals('code', $post['code']);
+                $this->assertEquals('urn:ietf:params:oauth:client-assertion-type:jwt-bearer', $post['client_assertion_type']);
+                $this->assertTrue($client->verifyJwtSignature($post['client_assertion']));
+                return true;
+            }))->willReturn('{"id_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg","access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg"}');
+        $this->assertTrue($client->authenticate());
+    }
+
     private function cleanup()
     {
         $_REQUEST = [];
