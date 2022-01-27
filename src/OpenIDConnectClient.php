@@ -664,6 +664,7 @@ class OpenIDConnectClient
         if (parse_url($url,PHP_URL_HOST) !== false) {
             $this->redirectURL = $url;
         }
+        throw new \InvalidArgumentException("Invalid redirect URL provided");
     }
 
     /**
@@ -674,7 +675,7 @@ class OpenIDConnectClient
     public function getRedirectURL(): string
     {
         // If the redirect URL has been set then return it.
-        if (property_exists($this, 'redirectURL') && $this->redirectURL) {
+        if ($this->redirectURL) {
             return $this->redirectURL;
         }
 
@@ -690,8 +691,7 @@ class OpenIDConnectClient
          * The problem with SSL over port 80 is resolved and non-SSL over port 443.
          * Support of 'ProxyReverse' configurations.
          */
-
-        if ($this->httpUpgradeInsecureRequests && isset($_SERVER['HTTP_UPGRADE_INSECURE_REQUESTS']) && ($_SERVER['HTTP_UPGRADE_INSECURE_REQUESTS'] === '1')) {
+        if ($this->httpUpgradeInsecureRequests && isset($_SERVER['HTTP_UPGRADE_INSECURE_REQUESTS']) && $_SERVER['HTTP_UPGRADE_INSECURE_REQUESTS'] === '1') {
             $protocol = 'https';
         } elseif (isset($_SERVER['HTTP_X_FORWARDED_PROTO'])) {
             $protocol = $_SERVER['HTTP_X_FORWARDED_PROTO'];
@@ -704,9 +704,9 @@ class OpenIDConnectClient
         }
 	    
         if (isset($_SERVER['HTTP_X_FORWARDED_PORT'])) {
-            $port = intval($_SERVER['HTTP_X_FORWARDED_PORT']);
+            $port = (int)$_SERVER['HTTP_X_FORWARDED_PORT'];
         } elseif (isset($_SERVER['SERVER_PORT'])) {
-            $port = intval($_SERVER['SERVER_PORT']);
+            $port = (int)$_SERVER['SERVER_PORT'];
         } elseif ($protocol === 'https') {
             $port = 443;
         } else {
@@ -723,10 +723,10 @@ class OpenIDConnectClient
             return 'http:///';
         }
 
-        $port = (443 === $port) || (80 === $port) ? '' : ':' . $port;
+        $port = (443 === $port || 80 === $port) ? '' : ':' . $port;
 	    
-        $explodedRequestUri = isset($_SERVER['REQUEST_URI']) ? explode('?', $_SERVER['REQUEST_URI']) : [];
-        return sprintf('%s://%s%s/%s', $protocol, $host, $port, trim(reset($explodedRequestUri), '/'));
+        $explodedRequestUri = isset($_SERVER['REQUEST_URI']) ? trim(explode('?', $_SERVER['REQUEST_URI'])[0], '/') : '';
+        return "$protocol://$host$port/$explodedRequestUri";
     }
 
     /**
