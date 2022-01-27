@@ -229,11 +229,6 @@ class OpenIDConnectClient
     private $scopes = [];
 
     /**
-     * @var int|null Response code from the server
-     */
-    private $responseCode;
-
-    /**
      * @var array holds response types
      * @see https://datatracker.ietf.org/doc/html/rfc6749#section-3.1.1
      */
@@ -333,6 +328,11 @@ class OpenIDConnectClient
      * @var int
      */
     private $keyCacheExpiration = 86400; // one day
+
+    /**
+     * @var resource CURL handle
+     */
+    private $ch;
 
     /**
      * @var string|null
@@ -1398,7 +1398,11 @@ class OpenIDConnectClient
      */
     protected function fetchURL(string $url, $postBody = null, array $headers = []): string
     {
-        $ch = curl_init();
+        if (!$this->ch) {
+            $this->ch = curl_init();
+        }
+
+        curl_reset($this->ch);
 
         // Determine whether this is a GET or POST
         if ($postBody !== null) {
@@ -1414,10 +1418,10 @@ class OpenIDConnectClient
                 throw new \InvalidArgumentException("Invalid type for postBody, expected array, string or null value");
             }
 
-            // curl_setopt($ch, CURLOPT_POST, 1);
+            // curl_setopt($this->ch, CURLOPT_POST, 1);
             // Allows to keep the POST method even after redirect
-            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $postBody);
+            curl_setopt($this->ch, CURLOPT_CUSTOMREQUEST, 'POST');
+            curl_setopt($this->ch, CURLOPT_POSTFIELDS, $postBody);
 
             // Add POST-specific headers
             $headers[] = "Content-Type: {$contentType}";
@@ -1425,53 +1429,37 @@ class OpenIDConnectClient
 
         // If we set some headers include them
         if (!empty($headers)) {
-            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+            curl_setopt($this->ch, CURLOPT_HTTPHEADER, $headers);
         }
-
-        // Set URL to download
-        curl_setopt($ch, CURLOPT_URL, $url);
 
         if (isset($this->httpProxy)) {
-            curl_setopt($ch, CURLOPT_PROXY, $this->httpProxy);
+            curl_setopt($this->ch, CURLOPT_PROXY, $this->httpProxy);
         }
-
-        // Include header in result?
-        curl_setopt($ch, CURLOPT_HEADER, false);
-
-        // Allows to follow redirect
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 
         /**
          * Set cert
          * Otherwise ignore SSL peer verification
          */
         if (isset($this->certPath)) {
-            curl_setopt($ch, CURLOPT_CAINFO, $this->certPath);
+            curl_setopt($this->ch, CURLOPT_CAINFO, $this->certPath);
         }
 
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $this->verifyHost ? 2 : 0);
-
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $this->verifyPeer);
-
-        // Should cURL return or print out the data? (true = return, false = print)
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-
-        // Timeout in seconds
-        curl_setopt($ch, CURLOPT_TIMEOUT, $this->timeOut);
+        curl_setopt_array($this->ch, [
+            CURLOPT_URL => $url, // Set URL to download
+            CURLOPT_FOLLOWLOCATION => true, // Allows to follow redirect
+            CURLOPT_SSL_VERIFYPEER => $this->verifyPeer,
+            CURLOPT_SSL_VERIFYHOST => $this->verifyHost ? 2 : 0,
+            CURLOPT_RETURNTRANSFER => true, // Should cURL return or print out the data? (true = return, false = print)
+            CURLOPT_HEADER => false, CURLOPT_HEADER, // Include header in result?
+            CURLOPT_TIMEOUT => $this->timeOut, // Timeout in seconds
+        ]);
 
         // Download the given URL, and return output
-        $output = curl_exec($ch);
-
-        // HTTP Response code from server may be required from subclass
-        $info = curl_getinfo($ch);
-        $this->responseCode = $info['http_code'];
+        $output = curl_exec($this->ch);
 
         if ($output === false) {
-            throw new OpenIDConnectClientException('Curl error: (' . curl_errno($ch) . ') ' . curl_error($ch));
+            throw new OpenIDConnectClientException('Curl error: (' . curl_errno($this->ch) . ') ' . curl_error($this->ch));
         }
-
-        // Close the cURL resource, and free system resources
-        curl_close($ch);
 
         return $output;
     }
@@ -1887,7 +1875,8 @@ class OpenIDConnectClient
      */
     public function getResponseCode()
     {
-        return $this->responseCode;
+        $info = curl_getinfo($this->ch);
+        return $info['http_code'];
     }
 
     /**
