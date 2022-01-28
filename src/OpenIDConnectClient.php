@@ -206,12 +206,12 @@ class OpenIDConnectClient
     protected $accessToken;
 
     /**
-     * @var string if we acquire a refresh token it will be stored here
+     * @var string|null if we acquire a refresh token it will be stored here
      */
     private $refreshToken;
 
     /**
-     * @var string if we acquire an id token it will be stored here
+     * @var string|null if we acquire an id token it will be stored here
      */
     protected $idToken;
 
@@ -321,13 +321,13 @@ class OpenIDConnectClient
     private $wellknownCacheExpiration = 86400; // one day
 
     /**
-     * How long should be stored key in apcu cache in seconds, Use zero to disable caching.
+     * How long should be stored key in apcu cache in seconds. Use zero to disable caching.
      * @var int
      */
     private $keyCacheExpiration = 86400; // one day
 
     /**
-     * @var resource CURL handle
+     * @var resource|\CurlHandle|null CURL handle
      */
     private $ch;
 
@@ -999,13 +999,13 @@ class OpenIDConnectClient
     }
 
     /**
-     * @param object $header
+     * @param \stdClass $header
      * @param string $type
      * @return AsymmetricKey
      * @throws OpenIDConnectClientException
      * @throws JsonException
      */
-    private function fetchKeyForHeader($header, string $type): AsymmetricKey
+    private function fetchKeyForHeader(\stdClass $header, string $type): AsymmetricKey
     {
         $jwksUri = $this->getProviderConfigValue('jwks_uri');
         if (!$jwksUri) {
@@ -1040,20 +1040,24 @@ class OpenIDConnectClient
 
     /**
      * @param array $keys
-     * @param object $header
-     * @param string $type 'RSA' or 'EC'
+     * @param \stdClass $header
+     * @param string $keyType 'RSA' or 'EC'
      * @return \stdClass
      * @throws OpenIDConnectClientException
      */
-    private function getKeyForHeader(array $keys, $header, string $type): \stdClass
+    private function getKeyForHeader(array $keys, \stdClass $header, string $keyType): \stdClass
     {
+        if (!isset($header->alg)) {
+            throw new OpenIDConnectClientException("Invalid header provided, `alg` field missing.");
+        }
+
         foreach (array_merge($keys, $this->additionalJwks) as $key) {
-            if ($key->kty === $type) {
+            if ($key->kty === $keyType) {
                 if (!isset($header->kid) || $key->kid === $header->kid) {
                     return $key;
                 }
             } else {
-                if (isset($key->alg) && $key->alg === $header->alg && $key->kid === $header->kid) {
+                if (isset($key->alg) && isset($key->kid) && $key->alg === $header->alg && $key->kid === $header->kid) {
                     return $key;
                 }
             }
@@ -1061,7 +1065,7 @@ class OpenIDConnectClient
         if (isset($header->kid)) {
             throw new OpenIDConnectClientException("Unable to find a key for {$header->alg} with kid `{$header->kid}`");
         }
-        throw new OpenIDConnectClientException("Unable to find a key for $type");
+        throw new OpenIDConnectClientException("Unable to find a key for $keyType");
     }
 
     /**
@@ -1357,10 +1361,15 @@ class OpenIDConnectClient
     protected function fetchURL(string $url, $postBody = null, array $headers = []): string
     {
         if (!$this->ch) {
+            // Share handle between requests to allow keep connection alive between requests
             $this->ch = curl_init();
+            if (!$this->ch) {
+                throw new \RuntimeException("Could not initialize curl");
+            }
+        } else {
+            // Reset options, so we can do another request
+            curl_reset($this->ch);
         }
-
-        curl_reset($this->ch);
 
         // Determine whether this is a GET or POST
         if ($postBody !== null) {

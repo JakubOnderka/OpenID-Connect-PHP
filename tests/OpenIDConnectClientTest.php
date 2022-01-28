@@ -470,7 +470,7 @@ class OpenIDConnectClientTest extends TestCase
             'token_endpoint_auth_methods_supported' => ['client_secret_post'],
         ]);
         $client->method('fetchURL')
-            ->with($this->equalTo('https://example.com'), $this->callback(function (array $post) use ($client) {
+            ->with($this->equalTo('https://example.com'), $this->callback(function (array $post): bool {
                 $this->assertEquals('authorization_code', $post['grant_type']);
                 $this->assertEquals('code', $post['code']);
                 $this->assertEquals('client-id', $post['client_id']);
