@@ -17,6 +17,9 @@
             ".*"
         ]
     },
+    "suggest": {
+        "ext-apcu": "For caching remote server responses"
+    },
     "autoload" : {
          "classmap": [ "src/"]
     }
