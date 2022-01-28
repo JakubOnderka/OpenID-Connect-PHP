@@ -4,7 +4,19 @@ A simple library that allows an application to authenticate a user through the b
 This library hopes to encourage OpenID Connect use by making it simple enough for a developer with little knowledge of
 the OpenID Connect protocol to setup authentication.
 
-A special thanks goes to Justin Richer and Amanda Anganes for their help and support of the protocol.
+## This is a fork of [jumbojett/OpenID-Connect-PHP](https://github.com/jumbojett/OpenID-Connect-PHP)
+
+Jumbojett`s library is great, but lacks of some features, testing, and it is not ready for new PHP versions. So I created
+this fork. This fork requires PHP 7.0 or greater, if you need to use older PHP version, please use original version.
+
+Most important changes:
+
+* Added support for elliptic curve (EC) JWT token signature algorithms, that are faster than RSA signatures
+* Added support for `client_secret_jwt` authentication method to token endpoint, that is more secure that traditional method
+* Much higher code coverage by unit tests
+* A lot of small optimisations and fixes
+
+A special thanks goes to Michael Jett, original author of this library and Justin Richer and Amanda Anganes for their help and support of the protocol.
 
 ## Requirements
 

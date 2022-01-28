@@ -6,8 +6,26 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+### BC
+* Required PHP 7.0 or newer
+* Required [phpseclib/phpseclib](https://phpseclib.com/) version **3**.
+
 ### Added
-* Support for [phpseclib/phpseclib](https://phpseclib.com/) version **3**.
+* Support for new JWT token signature algorithm:
+  * `ES256`
+  * `ES384`
+  * `ES512`
+  * `PS384`
+  * `PS512`
+* Support for `client_secret_jwt` authentication method to token endpoint
+* Support for signed responses when fetching user info
+* Cache wellknown and key responses in apcu cache if apcu PHP extension is enabled
+* Test against PHP 8.0 and PHP 8.1
+* Verify PHP code by phpstan tool
+* Typehints for all methods
+* Keep HTTP connection between requests to remote server
+* Bunch of new test
+* Better exception description for easier debugging
 
 ## [0.9.5]
 
