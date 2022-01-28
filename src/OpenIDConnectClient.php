@@ -93,6 +93,25 @@ class OpenIDConnectClientException extends \Exception
 
 }
 
+class CurlResponse
+{
+    /** @var string */
+    public $data;
+
+    /** @var int */
+    public $responseCode;
+
+    /** @var string|null */
+    public $contentType;
+
+    public function __construct(string $data, int $responseCode = 200, string $contentType = null)
+    {
+        $this->data = $data;
+        $this->responseCode = $responseCode;
+        $this->contentType = $contentType;
+    }
+}
+
 abstract class JwkEcFormat
 {
     /**
@@ -603,7 +622,11 @@ class OpenIDConnectClient
             }
         }
 
-        $wellKnown = $this->jsonDecode($this->fetchURL($wellKnownConfigUrl));
+        $response = $this->fetchURL($wellKnownConfigUrl);
+        if ($response->responseCode !== 200) {
+            throw new OpenIDConnectClientException("Invalid response code {$response->responseCode} when fetching wellKnow, expected 200");
+        }
+        $wellKnown = $this->jsonDecode($response->data);
 
         if ($this->wellknownCacheExpiration && function_exists('apcu_store')) {
             apcu_store(self::WELLKNOWN_CACHE . md5($wellKnownConfigUrl), $wellKnown, $this->wellknownCacheExpiration);
@@ -846,7 +869,7 @@ class OpenIDConnectClient
         }
 
         $token_endpoint = $this->getProviderConfigValue('token_endpoint');
-        return $this->jsonDecode($this->fetchURL($token_endpoint, $postData));
+        return $this->jsonDecode($this->fetchURL($token_endpoint, $postData)->data);
     }
 
     /**
@@ -882,7 +905,7 @@ class OpenIDConnectClient
         ]);
 
         $tokenEndpoint = $this->getProviderConfigValue('token_endpoint');
-        $this->tokenResponse = $this->jsonDecode($this->fetchURL($tokenEndpoint, $tokenParams));
+        $this->tokenResponse = $this->jsonDecode($this->fetchURL($tokenEndpoint, $tokenParams)->data);
         return $this->tokenResponse;
     }
 
@@ -928,7 +951,7 @@ class OpenIDConnectClient
             $params['client_secret'] = $this->clientSecret;
         }
 
-        return $this->jsonDecode($this->fetchURL($tokenEndpoint, $params, $headers));
+        return $this->jsonDecode($this->fetchURL($tokenEndpoint, $params, $headers)->data);
     }
 
     /**
@@ -1023,7 +1046,11 @@ class OpenIDConnectClient
         }
 
         try {
-            $jwks = $this->jsonDecode($this->fetchURL($jwksUri));
+            $response = $this->fetchURL($jwksUri);
+            if ($response->responseCode !== 200) {
+                throw new \Exception("Invalid response code {$response->responseCode}, expected 200");
+            }
+            $jwks = $this->jsonDecode($response->data);
         } catch (\Exception $e) {
             throw new OpenIDConnectClientException('Error fetching JSON from jwks_uri', 0, $e);
         }
@@ -1353,10 +1380,10 @@ class OpenIDConnectClient
      * @param string $url
      * @param string|array|null $postBody string If this is set the post type will be POST
      * @param array $headers Extra headers to be send with the request. Format as 'NameHeader: ValueHeader'
-     * @return string
+     * @return CurlResponse
      * @throws OpenIDConnectClientException
      */
-    protected function fetchURL(string $url, $postBody = null, array $headers = []): string
+    protected function fetchURL(string $url, $postBody = null, array $headers = []): CurlResponse
     {
         if (!$this->ch) {
             // Share handle between requests to allow keep connection alive between requests
@@ -1426,7 +1453,9 @@ class OpenIDConnectClient
             throw new OpenIDConnectClientException('Curl error: (' . curl_errno($this->ch) . ') ' . curl_error($this->ch));
         }
 
-        return $output;
+        $info = curl_getinfo($this->ch);
+
+        return new CurlResponse($output, $info['http_code'], $info['content_type']);
     }
 
     /**
@@ -1436,19 +1465,16 @@ class OpenIDConnectClient
     protected function fetchJsonOrJwk(string $url, $postBody = null, array $headers = []): \stdClass
     {
         $response = $this->fetchURL($url, $postBody, $headers);
-        if ($this->ch) {
-            $info = curl_getinfo($this->ch);
-            if ($info['http_code'] !== 200) {
-                throw new OpenIDConnectClientException("Could not fetch $url, error code {$info['response_code']}");
-            }
-            if ($info['content_type'] === 'application/jwt') {
-                if (!$this->verifyJwtSignature($response)) {
-                    throw new OpenIDConnectClientException ('Unable to verify signature');
-                }
-                return $this->decodeJWT($response, 1);
-            }
+        if ($response->responseCode !== 200) {
+            throw new OpenIDConnectClientException("Could not fetch $url, error code {$response->responseCode}");
         }
-        return $this->jsonDecode($response);
+        if ($response->contentType === 'application/jwt') {
+            if (!$this->verifyJwtSignature($response->data)) {
+                throw new OpenIDConnectClientException ('Unable to verify signature');
+            }
+            return $this->decodeJWT($response->data, 1);
+        }
+        return $this->jsonDecode($response->data);
     }
 
     /**
@@ -1640,7 +1666,7 @@ class OpenIDConnectClient
 
         $response = $this->fetchURL($registration_endpoint, json_encode($send_object));
 
-        $json_response = json_decode($response);
+        $json_response = json_decode($response->data);
 
         // Throw some errors if we encounter them
         if ($json_response === false) {
@@ -1692,7 +1718,7 @@ class OpenIDConnectClient
         $headers = ['Authorization: Basic ' . base64_encode(urlencode($clientId) . ':' . urlencode($clientSecret)),
             'Accept: application/json'];
 
-        return json_decode($this->fetchURL($introspection_endpoint, $post_params, $headers));
+        return json_decode($this->fetchURL($introspection_endpoint, $post_params, $headers)->data);
     }
 
     /**
@@ -1723,7 +1749,7 @@ class OpenIDConnectClient
         $headers = ['Authorization: Basic ' . base64_encode(urlencode($clientId) . ':' . urlencode($clientSecret)),
             'Accept: application/json'];
 
-        return json_decode($this->fetchURL($revocation_endpoint, $post_params, $headers));
+        return json_decode($this->fetchURL($revocation_endpoint, $post_params, $headers)->data);
     }
 
     /**
@@ -1853,17 +1879,6 @@ class OpenIDConnectClient
     public function getTokenResponse()
     {
         return $this->tokenResponse;
-    }
-
-    /**
-     * Get the response code from last action/curl request.
-     *
-     * @return int|null
-     */
-    public function getResponseCode()
-    {
-        $info = curl_getinfo($this->ch);
-        return $info['http_code'];
     }
 
     /**

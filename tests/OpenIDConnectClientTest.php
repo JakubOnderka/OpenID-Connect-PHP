@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+use JakubOnderka\CurlResponse;
 use JakubOnderka\OpenIDConnectClient;
 use JakubOnderka\OpenIDConnectClientException;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -67,7 +68,7 @@ class OpenIDConnectClientTest extends TestCase
         $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
         $client->method('fetchURL')
             ->with($this->equalTo('https://example.com/.well-known/openid-configuration'))
-            ->willReturn('{"issuer":"issuer"}');
+            ->willReturn(new CurlResponse('{"issuer":"issuer"}'));
         $client->setProviderURL('https://example.com');
         $this->assertEquals('issuer', $client->getWellKnownIssuer());
     }
@@ -80,7 +81,7 @@ class OpenIDConnectClientTest extends TestCase
         $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
         $client->method('fetchURL')
             ->with($this->equalTo('https://example.com/.well-known/openid-configuration'))
-            ->willReturn('{"issuer":"issuer"}');
+            ->willReturn(new CurlResponse('{"issuer":"issuer"}'));
         $client->setProviderURL('https://example.com/');
         $this->assertEquals('issuer', $client->getWellKnownIssuer());
     }
@@ -93,7 +94,7 @@ class OpenIDConnectClientTest extends TestCase
         $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
         $client->method('fetchURL')
             ->with($this->equalTo('https://example.com/.well-known/openid-configuration'))
-            ->willReturn('{"issuer":"issuer"}');
+            ->willReturn(new CurlResponse('{"issuer":"issuer"}'));
         $client->setProviderURL('https://example.com/.well-known/openid-configuration');
         $this->assertEquals('issuer', $client->getWellKnownIssuer());
     }
@@ -106,7 +107,7 @@ class OpenIDConnectClientTest extends TestCase
         $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
         $client->method('fetchURL')
             ->with($this->equalTo('https://example.com/.well-known/openid-configuration?ahoj=svete'))
-            ->willReturn('{"issuer":"issuer"}');
+            ->willReturn(new CurlResponse('{"issuer":"issuer"}'));
         $client->setWellKnownConfigParameters(['ahoj' => 'svete']);
         $client->setProviderURL('https://example.com');
         $this->assertEquals('issuer', $client->getWellKnownIssuer());
@@ -120,7 +121,7 @@ class OpenIDConnectClientTest extends TestCase
         $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
         $client->method('fetchURL')
             ->with($this->equalTo('https://example.com/.well-known/openid-configuration'))
-            ->willReturn('{"issuer":"iss');
+            ->willReturn(new CurlResponse('{"issuer":"iss'));
         $client->setProviderURL('https://example.com');
 
         $this->expectException(JakubOnderka\JsonException::class);
@@ -301,7 +302,7 @@ class OpenIDConnectClientTest extends TestCase
                     return true;
                 })
             )
-            ->willReturn('{"a":"b"}');
+            ->willReturn(new CurlResponse('{"a":"b"}'));
         $this->assertEquals('b', $client->requestUserInfo('a'));
     }
 
@@ -343,7 +344,7 @@ class OpenIDConnectClientTest extends TestCase
         $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
         $client->method('fetchURL')
             ->with($this->equalTo('https://example.com/.well-known/openid-configuration'))
-            ->willReturn('{"issuer":"https://example.cz"}');
+            ->willReturn(new CurlResponse('{"issuer":"https://example.cz"}'));
         $client->setProviderURL('https://example.com');
         $this->assertEquals("https://example.cz", $client->getWellKnownIssuer());
     }
@@ -354,7 +355,7 @@ class OpenIDConnectClientTest extends TestCase
         $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
         $client->method('fetchURL')
             ->with($this->equalTo('https://example.com/.well-known/openid-configuration?ahoj=svete'))
-            ->willReturn('{"issuer":"https://example.cz"}');
+            ->willReturn(new CurlResponse('{"issuer":"https://example.cz"}'));
         $client->setProviderURL('https://example.com');
         $client->setWellKnownConfigParameters(['ahoj' => 'svete']);
         $this->assertEquals("https://example.cz", $client->getWellKnownIssuer());
@@ -390,7 +391,7 @@ class OpenIDConnectClientTest extends TestCase
                     $this->assertContains('Authorization: Basic Y2xpZW50LWlkOmNsaWVudC1zZWNyZXQ=', $headers);
                     return true;
                 })
-            )->willReturn('{"id_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg","access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg"}');
+            )->willReturn(new CurlResponse('{"id_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg","access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg"}'));
         $this->assertTrue($client->authenticate());
     }
 
@@ -412,7 +413,7 @@ class OpenIDConnectClientTest extends TestCase
                 $this->assertContains('Authorization: Basic Y2xpZW50LWlkOmNsaWVudC1zZWNyZXQ=', $headers);
                 return true;
             })
-        )->willReturn('{"access_token": "access_token", "refresh_token": "refresh_token"}');
+        )->willReturn(new CurlResponse('{"access_token": "access_token", "refresh_token": "refresh_token"}'));
         $token = $client->refreshToken("token");
         $this->assertTrue(isset($token->access_token));
         $this->assertTrue(isset($token->refresh_token));
@@ -446,7 +447,7 @@ class OpenIDConnectClientTest extends TestCase
                 $this->assertEquals('urn:ietf:params:oauth:client-assertion-type:jwt-bearer', $post['client_assertion_type']);
                 $this->assertTrue($client->verifyJwtSignature($post['client_assertion']));
                 return true;
-            }))->willReturn('{"id_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg","access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg"}');
+            }))->willReturn(new CurlResponse('{"id_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg","access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg"}'));
         $this->assertTrue($client->authenticate());
     }
 
@@ -476,7 +477,7 @@ class OpenIDConnectClientTest extends TestCase
                 $this->assertEquals('client-id', $post['client_id']);
                 $this->assertEquals('client-secret', $post['client_secret']);
                 return true;
-            }))->willReturn('{"id_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg","access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg"}');
+            }))->willReturn(new CurlResponse('{"id_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg","access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg"}'));
         $this->assertTrue($client->authenticate());
     }
 

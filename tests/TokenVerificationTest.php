@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+use JakubOnderka\CurlResponse;
 use JakubOnderka\JwkEcFormat;
 use JakubOnderka\OpenIDConnectClient;
 use phpseclib3\Crypt\EC;
@@ -55,7 +56,7 @@ JSON;
     {
         /** @var OpenIDConnectClient | MockObject $client */
         $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchUrl'])->getMock();
-        $client->method('fetchUrl')->willReturn(file_get_contents(__DIR__ . "/data/jwks-$alg.json"));
+        $client->method('fetchUrl')->willReturn(new CurlResponse(file_get_contents(__DIR__ . "/data/jwks-$alg.json")));
         $client->setProviderURL('https://jwt.io/');
         $client->providerConfigParam(['jwks_uri' => 'https://jwt.io/.well-known/jwks.json']);
         $verified = $client->verifyJwtSignature($jwt);
@@ -76,7 +77,7 @@ JSON;
         $certs = json_decode(file_get_contents(__DIR__ . "/data/jwks-$alg.json"));
         $certs->keys[0]->kid = 'different_kid';
 
-        $client->method('fetchUrl')->willReturn(json_encode($certs));
+        $client->method('fetchUrl')->willReturn(new CurlResponse(json_encode($certs)));
         $client->setProviderURL('https://jwt.io/');
         $client->providerConfigParam(['jwks_uri' => 'https://jwt.io/.well-known/jwks.json']);
 
