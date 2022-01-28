@@ -149,11 +149,6 @@ if (!function_exists('json_decode')) {
     throw new OpenIDConnectClientException('OpenIDConnect needs the JSON PHP extension.');
 }
 
-/**
- *
- * Please note this class stores nonces by default in $_SESSION['openid_connect_nonce']
- *
- */
 class OpenIDConnectClient
 {
     // Session keys
@@ -1047,10 +1042,10 @@ class OpenIDConnectClient
      * @param array $keys
      * @param object $header
      * @param string $type 'RSA' or 'EC'
+     * @return \stdClass
      * @throws OpenIDConnectClientException
-     * @return object
      */
-    private function getKeyForHeader(array $keys, $header, string $type)
+    private function getKeyForHeader(array $keys, $header, string $type): \stdClass
     {
         foreach (array_merge($keys, $this->additionalJwks) as $key) {
             if ($key->kty === $type) {
