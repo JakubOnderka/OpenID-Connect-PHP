@@ -508,24 +508,22 @@ class OpenIDConnectClient
      * @param string|null $redirect URL to which the RP is requesting that the End-User's User Agent
      * be redirected after a logout has been performed. The value MUST have been previously
      * registered with the OP. Value can be null.
-     *
+     * @returns void
      * @throws OpenIDConnectClientException
+     * @throws JsonException
      */
-    public function signOut($idToken, $redirect = null) {
-        $signout_endpoint = $this->getProviderConfigValue('end_session_endpoint');
+    public function signOut(string $idToken, string $redirect = null)
+    {
+        $signoutEndpoint = $this->getProviderConfigValue('end_session_endpoint');
 
-        $signout_params = null;
-        if($redirect === null){
-            $signout_params = array('id_token_hint' => $idToken);
-        }
-        else {
-            $signout_params = array(
-                'id_token_hint' => $idToken,
-                'post_logout_redirect_uri' => $redirect);
+        $signoutParams = ['id_token_hint' => $idToken];
+        if ($redirect !== null) {
+            $signoutParams['post_logout_redirect_uri'] = $redirect;
         }
 
-        $signout_endpoint  .= (strpos($signout_endpoint, '?') === false ? '?' : '&') . http_build_query( $signout_params, '', '&', $this->enc_type);
-        $this->redirect($signout_endpoint);
+        $signoutEndpoint .= strpos($signoutEndpoint, '?') === false ? '?' : '&';
+        $signoutEndpoint .= http_build_query($signoutParams, '', '&', $this->enc_type);
+        $this->redirect($signoutEndpoint);
     }
 
     /**
