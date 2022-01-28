@@ -804,7 +804,11 @@ class OpenIDConnectClient
 
         // If the client supports Proof Key for Code Exchange (PKCE)
         $ccm = $this->getCodeChallengeMethod();
-        if (!empty($ccm) && in_array($ccm, $this->getProviderConfigValue('code_challenge_methods_supported'), true)) {
+        if (!empty($ccm)) {
+            if (!in_array($ccm, $this->getProviderConfigValue('code_challenge_methods_supported'), true)) {
+                throw new OpenIDConnectClientException("Unsupported code challenge method by IdP");
+            }
+
             $codeVerifier = base64url_encode(random_bytes(32));
             $this->setSessionKey(self::CODE_VERIFIER, $codeVerifier);
 
