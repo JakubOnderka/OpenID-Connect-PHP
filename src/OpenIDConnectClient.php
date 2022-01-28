@@ -112,6 +112,103 @@ class CurlResponse
     }
 }
 
+/**
+ * JSON Web Key Set
+ */
+class Jwks
+{
+    /**
+     * @var array<\stdClass>
+     */
+    private $keys;
+
+    /**
+     * @param array<\stdClass> $keys
+     */
+    public function __construct(array $keys)
+    {
+        $this->keys = $keys;
+    }
+
+    /**
+     * @throws OpenIDConnectClientException
+     */
+    public function getKeyForHeader(\stdClass $header): AsymmetricKey
+    {
+        if (!isset($header->alg)) {
+            throw new OpenIDConnectClientException("Malformed JWT token header, `alg` field is missing");
+        }
+
+        $keyType = $header->alg[0] === 'E' ? 'EC' : 'RSA';
+
+        foreach ($this->keys as $key) {
+            if ($key->kty === $keyType) {
+                if (!isset($header->kid) || $key->kid === $header->kid) {
+                    return $this->convertJwtToAsymmetricKey($key);
+                }
+            } else {
+                if (isset($key->alg) && isset($key->kid) && $key->alg === $header->alg && $key->kid === $header->kid) {
+                    return $this->convertJwtToAsymmetricKey($key);
+                }
+            }
+        }
+        if (isset($header->kid)) {
+            throw new OpenIDConnectClientException("Unable to find a key for {$header->alg} with kid `{$header->kid}`");
+        }
+        throw new OpenIDConnectClientException("Unable to find a key for $keyType");
+    }
+
+    /**
+     * @param \stdClass $key
+     * @return AsymmetricKey
+     * @throws OpenIDConnectClientException
+     */
+    private function convertJwtToAsymmetricKey(\stdClass $key): AsymmetricKey
+    {
+        if (!isset($key->kty)) {
+            throw new OpenIDConnectClientException("Malformed key object, `kty` field is missing");
+        }
+
+        if ($key->kty === 'EC') {
+            if (!isset($key->x) || !isset($key->y) || !isset($key->crv)) {
+                throw new OpenIDConnectClientException('Malformed EC key object');
+            }
+
+            EC::addFileFormat(JwkEcFormat::class);
+            return EC::load($key);
+
+        } else if ($key->kty === 'RSA') {
+            if (!isset($key->n) || !isset($key->e)) {
+                throw new OpenIDConnectClientException('Malformed RSA key object');
+            }
+
+            // Decode public key from base64url to binary, we don't need to use constant time impl for public key
+            $modulus = new BigInteger(base64url_decode($key->n), 256);
+            $exponent = new BigInteger(base64url_decode($key->e), 256);
+            $publicKeyRaw = [
+                'modulus' => $modulus,
+                'exponent' => $exponent,
+            ];
+            return RSA::load($publicKeyRaw);
+        }
+        throw new OpenIDConnectClientException("Not supported key type $key->kty");
+    }
+
+    /**
+     * Remove unnecessary part of keys when storing in cache
+     * @return string[]
+     */
+    public function __sleep()
+    {
+        foreach ($this->keys as $key) {
+            unset($key->x5c);
+            unset($key->x5t);
+            unset($key->{'x5t#S256'});
+        }
+        return ['keys'];
+    }
+}
+
 abstract class JwkEcFormat
 {
     /**
@@ -999,50 +1096,14 @@ class OpenIDConnectClient
         return $json;
     }
 
-    /**
-     * @param \stdClass $key
-     * @return AsymmetricKey
-     * @throws OpenIDConnectClientException
-     */
-    private function convertJwtToAsymmetricKey(\stdClass $key): AsymmetricKey
-    {
-        if (!isset($key->kty)) {
-            throw new OpenIDConnectClientException("Malformed key object, `kty` field is missing");
-        }
-
-        if ($key->kty === 'EC') {
-            if (!isset($key->x) || !isset($key->y) || !isset($key->crv)) {
-                throw new OpenIDConnectClientException('Malformed EC key object');
-            }
-
-            EC::addFileFormat(JwkEcFormat::class);
-            return EC::load($key);
-
-        } else if ($key->kty === 'RSA') {
-            if (!isset($key->n) || !isset($key->e)) {
-                throw new OpenIDConnectClientException('Malformed RSA key object');
-            }
-
-            // Decode public key from base64url to binary, we don't need to use constant time impl for public key
-            $modulus = new BigInteger(base64url_decode($key->n), 256);
-            $exponent = new BigInteger(base64url_decode($key->e), 256);
-            $publicKeyRaw = [
-                'modulus' => $modulus,
-                'exponent' => $exponent,
-            ];
-            return RSA::load($publicKeyRaw);
-        }
-        throw new OpenIDConnectClientException("Not supported key type $key->kty");
-    }
 
     /**
      * @param \stdClass $header
-     * @param string $type
      * @return AsymmetricKey
      * @throws OpenIDConnectClientException
      * @throws JsonException
      */
-    private function fetchKeyForHeader(\stdClass $header, string $type): AsymmetricKey
+    private function fetchKeyForHeader(\stdClass $header): AsymmetricKey
     {
         $jwksUri = $this->getProviderConfigValue('jwks_uri');
         if (!$jwksUri) {
@@ -1051,10 +1112,11 @@ class OpenIDConnectClient
 
         if (function_exists('apcu_fetch') && $this->keyCacheExpiration > 0) {
             $cacheKey = self::KEYS_CACHE . md5($jwksUri);
+            /** @var Jwks|false $jwks */
             $jwks = apcu_fetch($cacheKey);
             if ($jwks) {
                 try {
-                    return $this->convertJwtToAsymmetricKey($this->getKeyForHeader($jwks->keys, $header, $type));
+                    return $jwks->getKeyForHeader($header);
                 } catch (\Exception $e) {
                     // ignore if key not found and fetch key from server again
                 }
@@ -1066,7 +1128,7 @@ class OpenIDConnectClient
             if ($response->responseCode !== 200) {
                 throw new \Exception("Invalid response code {$response->responseCode}, expected 200");
             }
-            $jwks = $this->jsonDecode($response->data);
+            $jwks = new Jwks($this->jsonDecode($response->data)->keys);
         } catch (\Exception $e) {
             throw new OpenIDConnectClientException('Error fetching JSON from jwks_uri', 0, $e);
         }
@@ -1075,38 +1137,12 @@ class OpenIDConnectClient
             apcu_store($cacheKey, $jwks, $this->keyCacheExpiration);
         }
 
-        $key = $this->getKeyForHeader($jwks->keys, $header, $type);
-        return $this->convertJwtToAsymmetricKey($key);
-    }
-
-    /**
-     * @param array<\stdClass> $keys
-     * @param \stdClass $header
-     * @param string $keyType 'RSA' or 'EC'
-     * @return \stdClass
-     * @throws OpenIDConnectClientException
-     */
-    private function getKeyForHeader(array $keys, \stdClass $header, string $keyType): \stdClass
-    {
-        if (!isset($header->alg)) {
-            throw new OpenIDConnectClientException("Invalid header provided, `alg` field missing.");
+        try {
+            return $jwks->getKeyForHeader($header);
+        } catch (OpenIDConnectClientException $e) {
+            // No key found, try to check additionalJwks as last option
+            return (new Jwks($this->additionalJwks))->getKeyForHeader($header);
         }
-
-        foreach (array_merge($keys, $this->additionalJwks) as $key) {
-            if ($key->kty === $keyType) {
-                if (!isset($header->kid) || $key->kid === $header->kid) {
-                    return $key;
-                }
-            } else {
-                if (isset($key->alg) && isset($key->kid) && $key->alg === $header->alg && $key->kid === $header->kid) {
-                    return $key;
-                }
-            }
-        }
-        if (isset($header->kid)) {
-            throw new OpenIDConnectClientException("Unable to find a key for {$header->alg} with kid `{$header->kid}`");
-        }
-        throw new OpenIDConnectClientException("Unable to find a key for $keyType");
     }
 
     /**
@@ -1211,7 +1247,7 @@ class OpenIDConnectClient
             case 'PS512':
                 $hashType = 'sha' . substr($header->alg, 2);
                 $isPss = $header->alg[0] === 'P';
-                $key = $this->fetchKeyForHeader($header, 'RSA');
+                $key = $this->fetchKeyForHeader($header);
                 return $this->verifyRsaJwtSignature($hashType, $key, $payload, $signature, $isPss);
             case 'HS256':
             case 'HS512':
@@ -1222,7 +1258,7 @@ class OpenIDConnectClient
             case 'ES384':
             case 'ES512':
                 $hashType = 'SHA' . substr($header->alg, 2);
-                $key = $this->fetchKeyForHeader($header, 'EC');
+                $key = $this->fetchKeyForHeader($header);
                 return $this->verifyEcJwtSignature($hashType, $key, $payload, $signature);
         }
         throw new OpenIDConnectClientException('No support for signature type: ' . $header->alg);
