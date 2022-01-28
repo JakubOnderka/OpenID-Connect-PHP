@@ -696,10 +696,10 @@ class OpenIDConnectClient
      */
     public function setRedirectURL(string $url)
     {
-        if (parse_url($url,PHP_URL_HOST) !== false) {
-            $this->redirectURL = $url;
+        if (!parse_url($url,PHP_URL_HOST)) {
+            throw new \InvalidArgumentException("Invalid redirect URL provided");
         }
-        throw new \InvalidArgumentException("Invalid redirect URL provided");
+        $this->redirectURL = $url;
     }
 
     /**
@@ -1475,8 +1475,13 @@ class OpenIDConnectClient
     }
 
     /**
-     * @throws OpenIDConnectClientException
+     *
+     * @param string $url
+     * @param string|array|null $postBody
+     * @param array<string> $headers
+     * @return \stdClass
      * @throws JsonException
+     * @throws OpenIDConnectClientException
      */
     protected function fetchJsonOrJwk(string $url, $postBody = null, array $headers = []): \stdClass
     {

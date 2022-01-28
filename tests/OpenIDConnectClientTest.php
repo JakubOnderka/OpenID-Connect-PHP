@@ -44,6 +44,8 @@ class OpenIDConnectClientTest extends TestCase
         $this->assertFalse($client->getAllowImplicitFlow());
         $client->setAllowImplicitFlow(true);
         $this->assertTrue($client->getAllowImplicitFlow());
+
+        $client->setRedirectURL('http://localhost:8080/users/login');
     }
 
     /**
