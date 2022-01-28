@@ -26,6 +26,7 @@ jobs:
               uses: shivammathur/setup-php@v2
               with:
                   php-version: ${{ matrix.php }}
+                  tools: parallel-lint
             - name: Get composer cache directory
               id: composer-cache
               run: echo "::set-output name=dir::$(composer config cache-files-dir)"
@@ -40,5 +41,8 @@ jobs:
               run: composer require --dev phpunit/phpunit ^8
             - name: Install dependencies
               run: composer update $DEFAULT_COMPOSER_FLAGS
+            - name: Run lint
+              run: parallel-lint src tests
             - name: Run unit tests
               run: vendor/bin/phpunit --verbose --colors=always tests
+
