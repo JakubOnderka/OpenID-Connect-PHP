@@ -2021,6 +2021,14 @@ class OpenIDConnectClient
      */
     public function setTokenAuthenticationMethod($tokenAuthenticationMethod)
     {
+        if ($tokenAuthenticationMethod === 'private_key_jwt') {
+            throw new \InvalidArgumentException("Authentication method `private_key_jwt` is not supported");
+        }
+
+        if ($tokenAuthenticationMethod !== null && !in_array($tokenAuthenticationMethod, ['client_secret_post', 'client_secret_basic', 'client_secret_jwt'])) {
+            throw new \InvalidArgumentException("Unknown authentication method `$tokenAuthenticationMethod` provided.");
+        }
+
         $this->tokenAuthenticationMethod = $tokenAuthenticationMethod;
     }
 
