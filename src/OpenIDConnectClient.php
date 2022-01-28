@@ -47,7 +47,8 @@ use phpseclib3\Math\BigInteger;
  * @return string
  * @throws \RuntimeException
  */
-function base64url_decode(string $base64url): string {
+function base64url_decode(string $base64url): string
+{
     $base64 = strtr($base64url, '-_', '+/');
     $decoded = base64_decode($base64, true);
     if ($decoded === false) {
@@ -60,7 +61,8 @@ function base64url_decode(string $base64url): string {
  * @param string $str
  * @return string
  */
-function base64url_encode(string $str): string {
+function base64url_encode(string $str): string
+{
     $enc = base64_encode($str);
     $enc = rtrim($enc, '=');
     $enc = strtr($enc, '+/', '-_');
@@ -74,7 +76,8 @@ if (!function_exists('str_ends_with')) {
      * @param string $needle
      * @return bool
      */
-    function str_ends_with(string $haystack, string $needle): bool {
+    function str_ends_with(string $haystack, string $needle): bool
+    {
         $needleLen = strlen($needle);
         return $needleLen === 0 || substr_compare($haystack, $needle, -$needleLen) === 0;
     }
@@ -369,7 +372,7 @@ class OpenIDConnectClient
 
     /**
      * @var array holds well-known opendid configuration parameters, like policy for MS Azure AD B2C User Flow
-     * @see https://docs.microsoft.com/en-us/azure/active-directory-b2c/user-flow-overview 
+     * @see https://docs.microsoft.com/en-us/azure/active-directory-b2c/user-flow-overview
      */
     private $wellKnownConfigParameters = [];
 
@@ -465,8 +468,8 @@ class OpenIDConnectClient
         $this->clientID = $clientId;
         $this->clientSecret = $clientSecret;
 
-        $this->issuerValidator = function(string $iss): bool {
-	        return $iss === $this->getIssuer() || $iss === $this->getWellKnownIssuer() || $iss === $this->getWellKnownIssuer(true);
+        $this->issuerValidator = function (string $iss): bool {
+            return $iss === $this->getIssuer() || $iss === $this->getWellKnownIssuer() || $iss === $this->getWellKnownIssuer(true);
         };
     }
 
@@ -690,9 +693,9 @@ class OpenIDConnectClient
      *
      * @param string $param
      * @param mixed|null $default
-     * @throws OpenIDConnectClientException
-     * @throws JsonException
      * @return mixed
+     * @throws JsonException
+     * @throws OpenIDConnectClientException
      */
     protected function getProviderConfigValue(string $param, $default = null)
     {
@@ -719,7 +722,7 @@ class OpenIDConnectClient
         }
 
         if (!empty($this->wellKnownConfigParameters)) {
-            $wellKnownConfigUrl .= '?' .  http_build_query($this->wellKnownConfigParameters);
+            $wellKnownConfigUrl .= '?' . http_build_query($this->wellKnownConfigParameters);
         }
 
         if ($this->wellknownCacheExpiration && function_exists('apcu_fetch')) {
@@ -760,7 +763,7 @@ class OpenIDConnectClient
         }
 
         $value = false;
-        if (isset($this->wellKnown->{$param})){
+        if (isset($this->wellKnown->{$param})) {
             $value = $this->wellKnown->{$param};
         }
 
@@ -793,7 +796,7 @@ class OpenIDConnectClient
      */
     public function setRedirectURL(string $url)
     {
-        if (!parse_url($url,PHP_URL_HOST)) {
+        if (!parse_url($url, PHP_URL_HOST)) {
             throw new \InvalidArgumentException("Invalid redirect URL provided");
         }
         $this->redirectURL = $url;
@@ -834,7 +837,7 @@ class OpenIDConnectClient
         } else {
             $protocol = 'http';
         }
-	    
+
         if (isset($_SERVER['HTTP_X_FORWARDED_PORT'])) {
             $port = (int)$_SERVER['HTTP_X_FORWARDED_PORT'];
         } elseif (isset($_SERVER['SERVER_PORT'])) {
@@ -856,7 +859,7 @@ class OpenIDConnectClient
         }
 
         $port = (443 === $port || 80 === $port) ? '' : ':' . $port;
-	    
+
         $explodedRequestUri = isset($_SERVER['REQUEST_URI']) ? trim(explode('?', $_SERVER['REQUEST_URI'])[0], '/') : '';
         return "$protocol://$host$port/$explodedRequestUri";
     }
@@ -1282,7 +1285,7 @@ class OpenIDConnectClient
                 // This should never happened, because alg is already checked in verifyJWTsignature method
                 throw new OpenIDConnectClientException("Invalid ID token alg");
             }
-            $len = ((int) $bit) / 16;
+            $len = ((int)$bit) / 16;
             $expectedAtHash = base64url_encode(substr(hash('sha' . $bit, $accessToken, true), 0, $len));
         }
 
@@ -1652,7 +1655,7 @@ class OpenIDConnectClient
     }
 
     /**
-     * @return bool 
+     * @return bool
      */
     public function getHttpUpgradeInsecureRequests(): bool
     {
@@ -1857,7 +1860,7 @@ class OpenIDConnectClient
      * @param string $accessToken
      * @return void
      */
-    public function setAccessToken(string  $accessToken)
+    public function setAccessToken(string $accessToken)
     {
         $this->accessToken = $accessToken;
     }
