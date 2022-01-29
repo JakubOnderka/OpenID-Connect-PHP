@@ -27,9 +27,6 @@ class OpenIDConnectClientTest extends TestCase
     {
         $client = new OpenIDConnectClient();
 
-        $client->setLeeway(1234);
-        $this->assertEquals(1234, $client->getLeeway());
-
         $client->setTimeout(1234);
         $this->assertEquals(1234, $client->getTimeout());
 
@@ -128,39 +125,6 @@ class OpenIDConnectClientTest extends TestCase
 
         $this->expectException(JakubOnderka\JsonException::class);
         $client->getWellKnownIssuer();
-    }
-
-    public function testAuthenticateDoesNotThrowExceptionIfClaimsIsMissingNonce()
-    {
-        $this->cleanup();
-
-        $fakeClaims = new \StdClass();
-        $fakeClaims->iss = 'fake-issuer';
-        $fakeClaims->aud = 'fake-client-id';
-        $fakeClaims->nonce = null;
-
-        $_REQUEST['id_token'] = 'abc.123.xyz';
-        $_REQUEST['state'] = 'state';
-        $_SESSION['openid_connect_state'] = 'state';
-
-        /** @var OpenIDConnectClient | MockObject $client */
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)
-            ->setMethods(['decodeJWT', 'getProviderConfigValue', 'verifyJWTsignature'])
-            ->getMock();
-        $client->method('decodeJWT')->willReturn($fakeClaims);
-        $client->method('getProviderConfigValue')->with('jwks_uri')->willReturn(true);
-        $client->method('verifyJWTsignature')->willReturn(true);
-
-        $client->setClientID('fake-client-id');
-        $client->setIssuer('fake-issuer');
-        $client->setIssuerValidator(function() {
-            return true;
-        });
-        $client->setAllowImplicitFlow(true);
-        $client->setProviderURL('https://jwt.io/');
-
-        $authenticated = $client->authenticate();
-        $this->assertTrue($authenticated);
     }
 
     public function testRequestAuthorization()

@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 * Bunch of new test
 * Better exception description for easier debugging
 
+### Fixed
+* Change JWT ID token verification to be compliant with OIDC specification
+
 ## [0.9.5]
 
 ### Changed
