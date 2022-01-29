@@ -107,7 +107,9 @@ $oidc->addAuthParam(array('password'=>'<Password>'));
 $token = $oidc->requestResourceOwnerToken(TRUE)->access_token;
 ```
 
-## Example 6: Basic client for implicit flow e.g. with Azure AD B2C (see http://openid.net/specs/openid-connect-core-1_0.html#ImplicitFlowAuth)
+## Example 6: Basic client for implicit flow e.g. with Azure AD B2C
+
+See https://openid.net/specs/openid-connect-core-1_0.html#ImplicitFlowAuth
 
 ```php
 use JakubOnderka\OpenIDConnectClient;
@@ -124,7 +126,9 @@ $oidc->authenticate();
 $sub = $oidc->getVerifiedClaims('sub');
 ```
 
-## Example 7: Introspection of an access token (see https://tools.ietf.org/html/rfc7662)
+## Example 7: Introspection of access token
+
+See https://tools.ietf.org/html/rfc7662
 
 ```php
 use JakubOnderka\OpenIDConnectClient;
@@ -160,7 +164,7 @@ $oidc->setVerifyHost(false);
 $oidc->setVerifyPeer(false);
 ```
 
-Also, your local system might not support HTTPS, so you might disable uprading to it:
+Also, your local system might not support HTTPS, so you might disable upgrading to it:
 
 ```php
 $oidc->httpUpgradeInsecureRequests(false);

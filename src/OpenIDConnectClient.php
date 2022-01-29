@@ -661,20 +661,21 @@ class OpenIDConnectClient
      * be redirected after a logout has been performed. The value MUST have been previously
      * registered with the OP. Value can be null.
      * @returns void
+     * @see https://openid.net/specs/openid-connect-rpinitiated-1_0.html
      * @throws OpenIDConnectClientException
      * @throws JsonException
      */
     public function signOut(string $idToken, string $redirect = null)
     {
-        $signoutEndpoint = $this->getProviderConfigValue('end_session_endpoint');
-
         $signoutParams = ['id_token_hint' => $idToken];
         if ($redirect !== null) {
             $signoutParams['post_logout_redirect_uri'] = $redirect;
         }
 
+        $signoutEndpoint = $this->getProviderConfigValue('end_session_endpoint');
         $signoutEndpoint .= strpos($signoutEndpoint, '?') === false ? '?' : '&';
         $signoutEndpoint .= http_build_query($signoutParams, '', '&', $this->enc_type);
+
         $this->redirect($signoutEndpoint);
     }
 
@@ -1301,7 +1302,7 @@ class OpenIDConnectClient
             case 'HS512':
             case 'HS384':
                 $hashType = 'SHA' . substr($header->alg, 2);
-                return $this->verifyHmacJwtSignature($hashType, $this->getClientSecret(), $payload, $signature);
+                return $this->verifyHmacJwtSignature($hashType, $this->clientSecret, $payload, $signature);
             case 'ES256':
             case 'ES384':
             case 'ES512':
@@ -1350,7 +1351,6 @@ class OpenIDConnectClient
         }
 
         $time = time();
-        $idTokenIatSlack = 600;
 
         // (9). Token expiration time
         if (!isset($claims->exp)) {
@@ -1362,15 +1362,7 @@ class OpenIDConnectClient
         }
 
         // (10). Time at which the JWT was issued.
-        if (!isset($claims->iat)) {
-            throw new VerifyJwtClaimFailed("Required `iat` claim not provided");
-        } elseif (!is_int($claims->iat) && !is_double($claims->iat)) {
-            throw new VerifyJwtClaimFailed("Required `iat` claim provided, but type is incorrect", 'int', gettype($claims->iat));
-        } elseif (($time - $idTokenIatSlack) > $claims->iat) {
-            throw new VerifyJwtClaimFailed("Token was issued more than $idTokenIatSlack seconds ago", $time - $idTokenIatSlack, $claims->iat);
-        } elseif (($time + $idTokenIatSlack) < $claims->iat) {
-            throw new VerifyJwtClaimFailed("Token was issued more than $idTokenIatSlack seconds in future", $time + $idTokenIatSlack, $claims->iat);
-        }
+        $this->verifyIat($claims, $time);
 
         // (11).
         $sessionNonce = $this->getSessionKey(self::NONCE);
@@ -1396,6 +1388,82 @@ class OpenIDConnectClient
             if (!hash_equals($expectedAtHash, $claims->at_hash)) {
                 throw new VerifyJwtClaimFailed("`at_hash` claim do not match", $expectedAtHash, $claims->at_hash);
             }
+        }
+    }
+
+    /**
+     * @param string $jwt
+     * @return \stdClass Token claims
+     * @throws JsonException
+     * @throws OpenIDConnectClientException
+     * @throws VerifyJwtClaimFailed
+     */
+    public function processLogoutToken(string $jwt): \stdClass
+    {
+        $this->verifyJwtSignature($jwt);
+        $claims = $this->decodeJWT($jwt, 1);
+        $this->verifyLogoutTokenClaims($claims);
+        return $claims;
+    }
+
+    /**
+     * @throws VerifyJwtClaimFailed
+     * @throws OpenIDConnectClientException
+     * @see https://openid.net/specs/openid-connect-backchannel-1_0.html#Validation
+     */
+    protected function verifyLogoutTokenClaims(\stdClass $claims)
+    {
+        // (3). Validate the iss, aud, and iat Claims in the same way they are validated in ID Tokens.
+        if (!isset($claims->iss)) {
+            throw new VerifyJwtClaimFailed("Required `iss` claim not provided");
+        } elseif (!($this->issuerValidator)($claims->iss)) {
+            throw new VerifyJwtClaimFailed("It didn't pass issuer validator", $this->getIssuer(), $claims->iss);
+        }
+
+        if (!isset($claims->aud)) {
+            throw new VerifyJwtClaimFailed("Required `aud` claim not provided");
+        } elseif ($claims->aud !== $this->clientID && !in_array($this->clientID, (array)$claims->aud, true)) {
+            throw new VerifyJwtClaimFailed("Client ID do not match to `aud` claim", $this->clientID, $claims->aud);
+        }
+
+        $this->verifyIat($claims, time());
+
+        // (4). Verify that the Logout Token contains a sub Claim, a sid Claim, or both.
+        if (!isset($claims->sub) && !isset($claims->sid)) {
+            throw new VerifyJwtClaimFailed("Required `sub` or `sid` claim not provided");
+        }
+
+        // (5). Verify that the Logout Token contains an events Claim whose value is JSON object containing
+        // the member name http://schemas.openid.net/event/backchannel-logout.
+        if (!isset($claims->events)) {
+            throw new VerifyJwtClaimFailed("Required `events` claim not provided");
+        } elseif (!isset($claims->events->{'http://schemas.openid.net/event/backchannel-logout'})) {
+            throw new VerifyJwtClaimFailed("`events` claim do not contains required member name");
+        }
+
+        // (6). Verify that the Logout Token does not contain a nonce Claim.
+        if (isset($claims->nonce)) {
+            throw new VerifyJwtClaimFailed("Prohibited `nonce` claim provided");
+        }
+    }
+
+    /**
+     * @param \stdClass $claims
+     * @param int $time
+     * @return void
+     * @throws VerifyJwtClaimFailed
+     */
+    private function verifyIat(\stdClass $claims, int $time)
+    {
+        $idTokenIatSlack = 600;
+        if (!isset($claims->iat)) {
+            throw new VerifyJwtClaimFailed("Required `iat` claim not provided");
+        } elseif (!is_int($claims->iat) && !is_double($claims->iat)) {
+            throw new VerifyJwtClaimFailed("Required `iat` claim provided, but type is incorrect", 'int', gettype($claims->iat));
+        } elseif (($time - $idTokenIatSlack) > $claims->iat) {
+            throw new VerifyJwtClaimFailed("Token was issued more than $idTokenIatSlack seconds ago", $time - $idTokenIatSlack, $claims->iat);
+        } elseif (($time + $idTokenIatSlack) < $claims->iat) {
+            throw new VerifyJwtClaimFailed("Token was issued more than $idTokenIatSlack seconds in future", $time + $idTokenIatSlack, $claims->iat);
         }
     }
 
