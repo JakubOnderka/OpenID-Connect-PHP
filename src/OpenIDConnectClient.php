@@ -74,7 +74,7 @@ function base64url_encode(string $str): string
 
 if (!function_exists('str_ends_with')) {
     /**
-     * `str_ends_with` function is available since PHP8,
+     * `str_ends_with` function is available since PHP8
      * @param string $haystack
      * @param string $needle
      * @return bool
@@ -1313,18 +1313,6 @@ class OpenIDConnectClient
      */
     protected function verifyJwtClaims(\stdClass $claims, string $accessToken = null)
     {
-        if (isset($claims->at_hash) && isset($accessToken)) {
-            $idTokenHeader = $this->getIdTokenHeader();
-            if (isset($idTokenHeader->alg) && $idTokenHeader->alg !== 'none') {
-                $bit = substr($idTokenHeader->alg, 2, 3);
-            } else {
-                // This should never happened, because alg is already checked in verifyJwtSignature method
-                throw new OpenIDConnectClientException("Invalid ID token alg");
-            }
-            $len = ((int)$bit) / 16;
-            $expectedAtHash = base64url_encode(substr(hash('sha' . $bit, $accessToken, true), 0, $len));
-        }
-
         // (2). The Client MUST validate that the aud (audience) Claim contains its client_id value registered at the Issuer identified by the iss (issuer) Claim as an audience.
         if (!isset($claims->iss)) {
             throw new VerifyJwtClaimFailed("Required `iss` claim not provided");
@@ -1382,8 +1370,20 @@ class OpenIDConnectClient
             throw new VerifyJwtClaimFailed("Nonce do not match", $sessionNonce, $claims->nonce);
         }
 
-        if (isset($claims->at_hash) && isset($expectedAtHash) && !hash_equals($expectedAtHash, $claims->at_hash)) {
-            throw new VerifyJwtClaimFailed("`at_hash` claim do not match", $expectedAtHash, $claims->at_hash);
+        if (isset($claims->at_hash) && isset($accessToken)) {
+            $idTokenHeader = $this->getIdTokenHeader();
+            if (isset($idTokenHeader->alg) && $idTokenHeader->alg !== 'none') {
+                $bit = substr($idTokenHeader->alg, 2, 3);
+            } else {
+                // This should never happened, because alg is already checked in verifyJwtSignature method
+                throw new OpenIDConnectClientException("Invalid ID token alg");
+            }
+            $len = ((int)$bit) / 16;
+            $expectedAtHash = base64url_encode(substr(hash('sha' . $bit, $accessToken, true), 0, $len));
+
+            if (!hash_equals($expectedAtHash, $claims->at_hash)) {
+                throw new VerifyJwtClaimFailed("`at_hash` claim do not match", $expectedAtHash, $claims->at_hash);
+            }
         }
     }
 

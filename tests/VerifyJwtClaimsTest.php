@@ -100,6 +100,18 @@ namespace {
             $this->assertTrue($client->authenticate());
         }
 
+        public function testVerifyJwtClaims_expirationAsDouble()
+        {
+            $client = $this->prepare();
+
+            $token = self::DEFAULT_TOKEN;
+            $token['exp'] = $token['exp'] + 0.1;
+            $client->method('requestTokens')->willReturn($this->createToken($token));
+
+            JakubOnderka\setTime(1311280971);
+            $this->assertTrue($client->authenticate());
+        }
+
         public function testVerifyJwtClaims_nonceNotProvided()
         {
             $client = $this->prepare([
