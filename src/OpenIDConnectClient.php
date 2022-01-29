@@ -396,6 +396,11 @@ class OpenIDConnectClient
     protected $timeOut = 60;
 
     /**
+     * @var Jwks|null
+     */
+    private $jwks;
+
+    /**
      * @var array<\stdClass> holds response types
      */
     private $additionalJwks = [];
@@ -1132,7 +1137,6 @@ class OpenIDConnectClient
         return $json;
     }
 
-
     /**
      * @param \stdClass $header
      * @return AsymmetricKey
@@ -1141,6 +1145,14 @@ class OpenIDConnectClient
      */
     private function fetchKeyForHeader(\stdClass $header): AsymmetricKey
     {
+        if ($this->jwks) {
+            try {
+                return $this->jwks->getKeyForHeader($header);
+            } catch (\Exception $e) {
+                // ignore if key not found and fetch key from server again
+            }
+        }
+
         $jwksUri = $this->getProviderConfigValue('jwks_uri');
         if (!$jwksUri) {
             throw new OpenIDConnectClientException('Unable to verify signature due to no jwks_uri being defined');
@@ -1149,7 +1161,7 @@ class OpenIDConnectClient
         if (function_exists('apcu_fetch') && $this->keyCacheExpiration > 0) {
             $cacheKey = self::KEYS_CACHE . md5($jwksUri);
             /** @var Jwks|false $jwks */
-            $jwks = apcu_fetch($cacheKey);
+            $jwks = $this->jwks = apcu_fetch($cacheKey);
             if ($jwks) {
                 try {
                     return $jwks->getKeyForHeader($header);
@@ -1164,7 +1176,7 @@ class OpenIDConnectClient
             if (!$response->isSuccess()) {
                 throw new \Exception("Invalid response code $response->responseCode.");
             }
-            $jwks = new Jwks($this->jsonDecode($response->data)->keys);
+            $jwks = $this->jwks = new Jwks($this->jsonDecode($response->data)->keys);
         } catch (\Exception $e) {
             throw new OpenIDConnectClientException('Error fetching JSON from jwks_uri', 0, $e);
         }
