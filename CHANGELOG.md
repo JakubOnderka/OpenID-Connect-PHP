@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 * Change JWT ID token verification to be compliant with OIDC specification
+* Successful HTTP response can be anything between 200 and 300
 
 ## [0.9.5]
 

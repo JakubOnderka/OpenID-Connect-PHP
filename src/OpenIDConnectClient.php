@@ -130,6 +130,14 @@ class CurlResponse
         $this->responseCode = $responseCode;
         $this->contentType = $contentType;
     }
+
+    /**
+     * @return bool Returns true if response code is between 200-299
+     */
+    public function isSuccess(): bool
+    {
+        return $this->responseCode >= 200 && $this->responseCode < 300;
+    }
 }
 
 /**
@@ -745,7 +753,7 @@ class OpenIDConnectClient
         }
 
         $response = $this->fetchURL($wellKnownConfigUrl);
-        if ($response->responseCode !== 200) {
+        if (!$response->isSuccess()) {
             throw new OpenIDConnectClientException("Invalid response code $response->responseCode when fetching wellKnow, expected 200");
         }
         $wellKnown = $this->jsonDecode($response->data);
@@ -1140,8 +1148,8 @@ class OpenIDConnectClient
 
         try {
             $response = $this->fetchURL($jwksUri);
-            if ($response->responseCode !== 200) {
-                throw new \Exception("Invalid response code {$response->responseCode}, expected 200");
+            if (!$response->isSuccess()) {
+                throw new \Exception("Invalid response code $response->responseCode.");
             }
             $jwks = new Jwks($this->jsonDecode($response->data)->keys);
         } catch (\Exception $e) {
@@ -1569,8 +1577,8 @@ class OpenIDConnectClient
     protected function fetchJsonOrJwk(string $url, $postBody = null, array $headers = []): \stdClass
     {
         $response = $this->fetchURL($url, $postBody, $headers);
-        if ($response->responseCode !== 200) {
-            throw new OpenIDConnectClientException("Could not fetch $url, error code {$response->responseCode}");
+        if (!$response->isSuccess()) {
+            throw new OpenIDConnectClientException("Could not fetch $url, error code $response->responseCode");
         }
         if ($response->contentType === 'application/jwt') {
             if (!$this->verifyJwtSignature($response->data)) {
