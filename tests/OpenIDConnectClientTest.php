@@ -154,6 +154,7 @@ class OpenIDConnectClientTest extends TestCase
         $client->setClientID('id');
         $client->providerConfigParam([
             'authorization_endpoint' => 'https://example.com',
+            'pushed_authorization_request_endpoint' => false,
         ]);
         $this->assertFalse($client->authenticate());
     }
@@ -182,6 +183,7 @@ class OpenIDConnectClientTest extends TestCase
         $client->providerConfigParam([
             'authorization_endpoint' => 'https://example.com',
             'code_challenge_methods_supported' => ['plain', 'S256'],
+            'pushed_authorization_request_endpoint' => false,
         ]);
         $this->assertFalse($client->authenticate());
     }
@@ -210,11 +212,12 @@ class OpenIDConnectClientTest extends TestCase
         $client->providerConfigParam([
             'authorization_endpoint' => 'https://example.com',
             'code_challenge_methods_supported' => ['plain', 'S256'],
+            'pushed_authorization_request_endpoint' => false,
         ]);
         $this->assertFalse($client->authenticate());
     }
 
-    public function testRequestAuthorization_additional_scopes()
+    public function testRequestAuthorization_additionalScopes()
     {
         $this->cleanup();
 
@@ -242,6 +245,48 @@ class OpenIDConnectClientTest extends TestCase
         $client->setClientID('id');
         $client->providerConfigParam([
             'authorization_endpoint' => 'https://example.com',
+            'pushed_authorization_request_endpoint' => false,
+        ]);
+        $this->assertFalse($client->authenticate());
+    }
+
+    public function testRequestAuthorization_par()
+    {
+        $this->cleanup();
+
+        /** @var OpenIDConnectClient | MockObject $client */
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['redirect', 'commitSession', 'fetchURL'])
+            ->getMock();
+        $client->method('commitSession')->willReturn(true);
+
+        $client->method('fetchURL')
+            ->with(
+                $this->equalTo('https://example.com/par'),
+                $this->callback(function (array $value) use ($client): bool {
+                    $this->assertArrayHasKey('request', $value);
+                    $this->assertTrue($client->verifyJwtSignature($value['request']));
+                    return true;
+                })
+            )
+            ->willReturn(new CurlResponse('{"request_uri":"urn:ietf:params:oauth:request_uri:bwc4JK-ESC0w8acc191e-Y1LTC2"}'));
+
+        $client->method('redirect')->with(
+            $this->callback(function (string $value): bool {
+                $parsed = parse_url($value);
+                parse_str($parsed['query'], $query);
+                $this->assertEquals('id', $query['client_id']);
+                $this->assertEquals('urn:ietf:params:oauth:request_uri:bwc4JK-ESC0w8acc191e-Y1LTC2', $query['request_uri']);
+                return true;
+            })
+        );
+        $client->setClientID('id');
+        $client->setClientSecret('secret');
+        $client->providerConfigParam([
+            'authorization_endpoint' => 'https://example.com',
+            'pushed_authorization_request_endpoint' => 'https://example.com/par',
+            'token_endpoint' => 'https://example.com/token',
+            'token_endpoint_auth_methods_supported' => ['client_secret_basic'],
         ]);
         $this->assertFalse($client->authenticate());
     }
@@ -300,6 +345,7 @@ class OpenIDConnectClientTest extends TestCase
         $client->setClientID('id');
         $client->providerConfigParam([
             'authorization_endpoint' => 'https://example.com',
+            'pushed_authorization_request_endpoint' => false,
         ]);
         $this->assertFalse($client->authenticate());
     }

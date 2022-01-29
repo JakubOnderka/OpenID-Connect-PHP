@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   * `PS384`
   * `PS512`
 * Support for `client_secret_jwt` authentication method to token endpoint
+* Support for [Pushed Authorization Request](https://tools.ietf.org/id/draft-ietf-oauth-par-03.html)
 * Support for signed responses when fetching user info
 * Cache wellknown and key responses in apcu cache if apcu PHP extension is enabled
 * Test against PHP 8.0 and PHP 8.1

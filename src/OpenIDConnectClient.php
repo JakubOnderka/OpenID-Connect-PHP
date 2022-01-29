@@ -904,8 +904,6 @@ class OpenIDConnectClient
      */
     private function requestAuthorization()
     {
-        $authEndpoint = $this->getProviderConfigValue('authorization_endpoint');
-
         // Generate and store a nonce in the session
         // The nonce is an arbitrary value
         $nonce = $this->generateRandString();
@@ -955,6 +953,22 @@ class OpenIDConnectClient
             ]);
         }
 
+        // PAR, @see https://tools.ietf.org/id/draft-ietf-oauth-par-03.html
+        $pushedAuthorizationEndpoint = $this->getProviderConfigValue('pushed_authorization_request_endpoint', false);
+        if ($pushedAuthorizationEndpoint) {
+            if ($this->clientSecret) {
+                $authParams = ['request' => $this->createHmacSignedJwt($authParams, 'HS256', $this->clientSecret)];
+            }
+            $response = $this->tokenEndpointRequest($authParams, $pushedAuthorizationEndpoint);
+            if (isset($response->request_uri)) {
+                $authParams = [
+                    'client_id' => $this->clientID,
+                    'request_uri' => $response->request_uri,
+                ];
+            }
+        }
+
+        $authEndpoint = $this->getProviderConfigValue('authorization_endpoint');
         // If auth endpoint already contains params, just append &
         $authEndpoint .= strpos($authEndpoint, '?') === false ? '?' : '&';
         $authEndpoint .= http_build_query($authParams, '', '&', $this->enc_type);
@@ -1047,12 +1061,13 @@ class OpenIDConnectClient
 
     /**
      * @param array<string, mixed> $params
+     * @param string $endpoint
      * @return \stdClass
      * @throws JsonException
      * @throws OpenIDConnectClientException
      * @throws \Exception
      */
-    protected function tokenEndpointRequest(array $params): \stdClass
+    protected function tokenEndpointRequest(array $params, string $endpoint = null): \stdClass
     {
         $tokenEndpoint = $this->getProviderConfigValue('token_endpoint');
         $authMethodsSupported = $this->getProviderConfigValue('token_endpoint_auth_methods_supported', ['client_secret_basic']);
@@ -1078,16 +1093,14 @@ class OpenIDConnectClient
 
             $params['client_assertion_type'] = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
             $params['client_assertion'] = $jwt;
-        }
-
-        if (in_array('client_secret_basic', $authMethodsSupported, true) && $this->tokenAuthenticationMethod !== 'client_secret_post') {
+        } elseif (in_array('client_secret_basic', $authMethodsSupported, true) && $this->tokenAuthenticationMethod !== 'client_secret_post') {
             $headers = [$this->basicAuthorizationHeader($this->clientID, $this->clientSecret)];
         } else { // client_secret_post fallback
             $params['client_id'] = $this->clientID;
             $params['client_secret'] = $this->clientSecret;
         }
 
-        return $this->jsonDecode($this->fetchURL($tokenEndpoint, $params, $headers)->data);
+        return $this->jsonDecode($this->fetchURL($endpoint ?: $tokenEndpoint, $params, $headers)->data);
     }
 
     /**
