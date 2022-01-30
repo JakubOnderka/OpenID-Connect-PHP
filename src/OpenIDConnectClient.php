@@ -598,7 +598,7 @@ class OpenIDConnectClient
      * @param string|null $providerUrl
      * @param string|null $clientId
      * @param string|null $clientSecret
-     * @param string|null $issuer If not provided, $providerUrl will be used as issuer
+     * @param string|null $issuer An Issuer Identifier is a case sensitive URL. If not provided, $providerUrl will be used as issuer
      * @throws OpenIDConnectClientException
      */
     public function __construct(string $providerUrl = null, string $clientId = null, string $clientSecret = null, string $issuer = null)
@@ -611,8 +611,15 @@ class OpenIDConnectClient
             throw new OpenIDConnectClientException('OpenIDConnectClient requires the JSON PHP extension.');
         }
 
-        $this->providerConfig['providerUrl'] = $providerUrl;
-        $this->providerConfig['issuer'] = $issuer ?: $providerUrl;
+        if ($providerUrl) {
+            $this->setProviderURL($providerUrl);
+        }
+
+        $issuer = $issuer ?: $providerUrl;
+        if ($issuer) {
+            $this->setIssuer($issuer);
+        }
+
         $this->clientID = $clientId;
         $this->clientSecret = $clientSecret;
 
@@ -864,7 +871,7 @@ class OpenIDConnectClient
      * Get's anything that we need configuration wise including endpoints, and other values
      *
      * @param string $param
-     * @param mixed|null $default optional
+     * @param mixed|null $default Default value that will be used when $param is not found
      * @return mixed
      * @throws JsonException
      * @throws OpenIDConnectClientException
@@ -877,16 +884,11 @@ class OpenIDConnectClient
             $this->wellKnown = $this->fetchWellKnown();
         }
 
-        $value = false;
         if (isset($this->wellKnown->{$param})) {
-            $value = $this->wellKnown->{$param};
+            return $this->wellKnown->{$param};
         }
 
-        if ($value) {
-            return $value;
-        }
-
-        if (isset($default)) {
+        if ($default !== null) {
             // Uses default value if provided
             return $default;
         }
@@ -1321,6 +1323,8 @@ class OpenIDConnectClient
         }
 
         $payload = "$parts[0].$parts[1]";
+        $hashType = 'sha' . substr($header->alg, 2);
+
         switch ($header->alg) {
             case 'RS256':
             case 'PS256':
@@ -1328,19 +1332,16 @@ class OpenIDConnectClient
             case 'PS384':
             case 'RS512':
             case 'PS512':
-                $hashType = 'sha' . substr($header->alg, 2);
                 $isPss = $header->alg[0] === 'P';
                 $key = $this->fetchKeyForHeader($header);
                 return $this->verifyRsaJwtSignature($hashType, $key, $payload, $signature, $isPss);
             case 'HS256':
             case 'HS512':
             case 'HS384':
-                $hashType = 'SHA' . substr($header->alg, 2);
                 return $this->verifyHmacJwtSignature($hashType, $this->clientSecret, $payload, $signature);
             case 'ES256':
             case 'ES384':
             case 'ES512':
-                $hashType = 'SHA' . substr($header->alg, 2);
                 $key = $this->fetchKeyForHeader($header);
                 return $this->verifyEcJwtSignature($hashType, $key, $payload, $signature);
         }
@@ -1577,20 +1578,22 @@ class OpenIDConnectClient
 
     /**
      * Get verified claims from ID token.
-     * @param string|null $attribute If no attribute provided, all claims will be returned
+     *
+     * These claims are defined by specification, but token can contain also other claims.
      *
      * Attribute        Type    Description
-     * exp              int     Expires at
+     * exp              int     REQUIRED Expires at
      * nbf              int     Not before
      * ver              string  Version
-     * iss              string  Issuer
-     * sub              string  Subject
-     * aud              string  Audience
+     * iss              string  REQUIRED Issuer
+     * sub              string  REQUIRED Subject Identifier. A locally unique and never reassigned identifier within the Issuer for the End-User.
+     * aud              string  REQUIRED Audience
      * nonce            string  nonce
-     * iat              int     Issued At
+     * iat              int     REQUIRED Issued At
      * auth_time        int     Authentication time
      * oid              string  Object id
      *
+     * @param string|null $attribute If no attribute provided, all claims will be returned
      * @return mixed|null Returns null if provided attribute doesn't exists
      * @throws JsonException
      */
@@ -1964,6 +1967,10 @@ class OpenIDConnectClient
      */
     public function setProviderURL(string $providerUrl)
     {
+        if (!filter_var($providerUrl, FILTER_VALIDATE_URL)) {
+            throw new \InvalidArgumentException("Provider URL must be valid URL.");
+        }
+
         $this->providerConfig['providerUrl'] = $providerUrl;
     }
 
@@ -1973,6 +1980,10 @@ class OpenIDConnectClient
      */
     public function setIssuer(string $issuer)
     {
+        if (!filter_var($issuer, FILTER_VALIDATE_URL)) {
+            throw new \InvalidArgumentException("Issuer must be valid URL.");
+        }
+
         $this->providerConfig['issuer'] = $issuer;
     }
 
@@ -2096,11 +2107,7 @@ class OpenIDConnectClient
     protected function getSessionKey(string $key)
     {
         $this->startSession();
-
-        if (array_key_exists($key, $_SESSION)) {
-            return $_SESSION[$key];
-        }
-        return null;
+        return $_SESSION[$key] ?? null;
     }
 
     /**

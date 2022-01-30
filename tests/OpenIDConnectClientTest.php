@@ -491,6 +491,10 @@ class OpenIDConnectClientTest extends TestCase
                 return true;
             }))->willReturn(new CurlResponse('{"id_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg","access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg"}'));
         $this->assertTrue($client->authenticate());
+
+        $this->assertEquals('John Doe', $client->getVerifiedClaims()->name);
+        $this->assertEquals('John Doe', $client->getVerifiedClaims('name'));
+        $this->assertNull($client->getVerifiedClaims('unknwon'));
     }
 
     private function cleanup()
