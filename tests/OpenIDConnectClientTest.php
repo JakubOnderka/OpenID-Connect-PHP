@@ -67,9 +67,10 @@ class OpenIDConnectClientTest extends TestCase
         $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
         $client->method('fetchURL')
             ->with($this->equalTo('https://example.com/.well-known/openid-configuration'))
-            ->willReturn(new CurlResponse('{"issuer":"issuer"}'));
+            ->willReturn(new CurlResponse('{"issuer":"https://example.com"}'));
         $client->setProviderURL('https://example.com');
-        $this->assertEquals('issuer', $client->getWellKnownIssuer());
+        $client->setIssuer('https://example.com');
+        $this->assertEquals('https://example.com', $client->getWellKnownIssuer());
     }
 
     public function testWellKnownUrl_withSlash()
@@ -80,9 +81,10 @@ class OpenIDConnectClientTest extends TestCase
         $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
         $client->method('fetchURL')
             ->with($this->equalTo('https://example.com/.well-known/openid-configuration'))
-            ->willReturn(new CurlResponse('{"issuer":"issuer"}'));
+            ->willReturn(new CurlResponse('{"issuer":"https://example.com"}'));
         $client->setProviderURL('https://example.com/');
-        $this->assertEquals('issuer', $client->getWellKnownIssuer());
+        $client->setIssuer('https://example.com/');
+        $this->assertEquals('https://example.com', $client->getWellKnownIssuer());
     }
 
     public function testWellKnownUrl_full()
@@ -93,9 +95,10 @@ class OpenIDConnectClientTest extends TestCase
         $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
         $client->method('fetchURL')
             ->with($this->equalTo('https://example.com/.well-known/openid-configuration'))
-            ->willReturn(new CurlResponse('{"issuer":"issuer"}'));
+            ->willReturn(new CurlResponse('{"issuer":"https://example.com"}'));
         $client->setProviderURL('https://example.com/.well-known/openid-configuration');
-        $this->assertEquals('issuer', $client->getWellKnownIssuer());
+        $client->setIssuer('https://example.com');
+        $this->assertEquals('https://example.com', $client->getWellKnownIssuer());
     }
 
     public function testWellKnownUrl_custom()
@@ -106,10 +109,11 @@ class OpenIDConnectClientTest extends TestCase
         $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
         $client->method('fetchURL')
             ->with($this->equalTo('https://example.com/.well-known/openid-configuration?ahoj=svete'))
-            ->willReturn(new CurlResponse('{"issuer":"issuer"}'));
+            ->willReturn(new CurlResponse('{"issuer":"https://example.com"}'));
         $client->setWellKnownConfigParameters(['ahoj' => 'svete']);
         $client->setProviderURL('https://example.com');
-        $this->assertEquals('issuer', $client->getWellKnownIssuer());
+        $client->setIssuer('https://example.com');
+        $this->assertEquals('https://example.com', $client->getWellKnownIssuer());
     }
 
     public function testWellKnownUrl_invalidJson_throwException()
@@ -124,6 +128,40 @@ class OpenIDConnectClientTest extends TestCase
         $client->setProviderURL('https://example.com');
 
         $this->expectException(JakubOnderka\JsonException::class);
+        $client->getWellKnownIssuer();
+    }
+
+    public function testProviderUrl_fromConstructor()
+    {
+        /** @var OpenIDConnectClient | MockObject $client */
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setConstructorArgs(['https://example.com/.well-known/openid-configuration'])
+            ->setMethods(['fetchURL'])
+            ->getMock();
+        $client->expects($this->once())
+            ->method('fetchURL')
+            ->with($this->equalTo('https://example.com/.well-known/openid-configuration'))
+            ->willReturn(new CurlResponse('{"issuer":"https://example.com/"}'));
+
+        $this->assertEquals('https://example.com/', $client->getIssuer());
+        $this->assertEquals('https://example.com/', $client->getProviderURL());
+        $client->getWellKnownIssuer();
+    }
+
+    public function testWellKnownUrl_invalidIssuer()
+    {
+        $this->cleanup();
+
+        /** @var OpenIDConnectClient | MockObject $client */
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
+        $client->method('fetchURL')
+            ->with($this->equalTo('https://example.com/.well-known/openid-configuration'))
+            ->willReturn(new CurlResponse('{"issuer":"iss"}'));
+        $client->setProviderURL('https://example.com');
+        $client->setIssuer('https://example.com');
+
+        $this->expectException(JakubOnderka\OpenIDConnectClientException::class);
+        $this->expectExceptionMessage('Invalid OpenID Provider Metadata returned, expected issuer `https://example.com`, `iss` provided.');
         $client->getWellKnownIssuer();
     }
 
@@ -356,9 +394,10 @@ class OpenIDConnectClientTest extends TestCase
         $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
         $client->method('fetchURL')
             ->with($this->equalTo('https://example.com/.well-known/openid-configuration'))
-            ->willReturn(new CurlResponse('{"issuer":"https://example.cz"}'));
+            ->willReturn(new CurlResponse('{"issuer":"https://example.com"}'));
         $client->setProviderURL('https://example.com');
-        $this->assertEquals("https://example.cz", $client->getWellKnownIssuer());
+        $client->setIssuer('https://example.com');
+        $this->assertEquals("https://example.com", $client->getWellKnownIssuer());
     }
 
     public function testFetchWellKnown_with_custom()
@@ -367,10 +406,11 @@ class OpenIDConnectClientTest extends TestCase
         $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
         $client->method('fetchURL')
             ->with($this->equalTo('https://example.com/.well-known/openid-configuration?ahoj=svete'))
-            ->willReturn(new CurlResponse('{"issuer":"https://example.cz"}'));
+            ->willReturn(new CurlResponse('{"issuer":"https://example.com"}'));
         $client->setProviderURL('https://example.com');
+        $client->setIssuer('https://example.com');
         $client->setWellKnownConfigParameters(['ahoj' => 'svete']);
-        $this->assertEquals("https://example.cz", $client->getWellKnownIssuer());
+        $this->assertEquals("https://example.com", $client->getWellKnownIssuer());
     }
 
     public function testRequestTokensClientSecretBasic()

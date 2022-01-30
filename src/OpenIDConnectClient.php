@@ -72,20 +72,6 @@ function base64url_encode(string $str): string
     return $enc;
 }
 
-if (!function_exists('str_ends_with')) {
-    /**
-     * `str_ends_with` function is available since PHP8
-     * @param string $haystack
-     * @param string $needle
-     * @return bool
-     */
-    function str_ends_with(string $haystack, string $needle): bool
-    {
-        $needleLen = strlen($needle);
-        return $needleLen === 0 || substr_compare($haystack, $needle, -$needleLen) === 0;
-    }
-}
-
 class JsonException extends \Exception
 {
 }
@@ -615,16 +601,18 @@ class OpenIDConnectClient
             $this->setProviderURL($providerUrl);
         }
 
-        $issuer = $issuer ?: $providerUrl;
         if ($issuer) {
             $this->setIssuer($issuer);
+        } elseif ($providerUrl) {
+            $this->setIssuer($this->getProviderURL());
         }
 
         $this->clientID = $clientId;
         $this->clientSecret = $clientSecret;
 
         $this->issuerValidator = function (string $iss): bool {
-            return $iss === $this->getIssuer() || $iss === $this->getWellKnownIssuer() || $iss === $this->getWellKnownIssuer(true);
+            $iss = rtrim($iss, '/'); // normalize
+            return $iss === rtrim($this->getIssuer(), '/') || $iss === rtrim($this->getWellKnownIssuer(), '/');
         };
     }
 
@@ -831,26 +819,46 @@ class OpenIDConnectClient
     }
 
     /**
+     * @param \stdClass $metadata
+     * @return void
+     * @throws OpenIDConnectClientException
+     */
+    private function validateMetadataIssuer(\stdClass $metadata)
+    {
+        if (!isset($metadata->issuer)) {
+            throw new OpenIDConnectClientException("Invalid OpenID Provider Metadata returned, they do not contain required `issuer` field.");
+        }
+
+        // https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfigurationValidation
+        // The issuer value returned MUST be identical to the Issuer URL that was directly used to retrieve the configuration information.
+        // Strip last `/` to normalize responses
+        $expectedIssuer = rtrim($this->getIssuer(), '/');
+        $actualIssuer = rtrim($metadata->issuer, '/');
+
+        if ($actualIssuer !== $expectedIssuer) {
+            throw new OpenIDConnectClientException("Invalid OpenID Provider Metadata returned, expected issuer `$expectedIssuer`, `$actualIssuer` provided.");
+        }
+    }
+
+    /**
      * @return \stdClass
      * @throws JsonException
      * @throws OpenIDConnectClientException
      */
-    private function fetchWellKnown(): \stdClass
+    private function fetchProviderMetadata(): \stdClass
     {
-        if (str_ends_with($this->getProviderURL(), '/.well-known/openid-configuration')) {
-            $wellKnownConfigUrl = $this->getProviderURL();
-        } else {
-            $wellKnownConfigUrl = rtrim($this->getProviderURL(), '/') . '/.well-known/openid-configuration';
-        }
+        $wellKnownConfigUrl = rtrim($this->getProviderURL(), '/') . '/.well-known/openid-configuration';
 
         if (!empty($this->wellKnownConfigParameters)) {
             $wellKnownConfigUrl .= '?' . http_build_query($this->wellKnownConfigParameters);
         }
 
         if ($this->wellknownCacheExpiration && function_exists('apcu_fetch')) {
-            $wellKnown = apcu_fetch(self::WELLKNOWN_CACHE . md5($wellKnownConfigUrl));
-            if ($wellKnown) {
-                return $wellKnown;
+            $metadata = apcu_fetch(self::WELLKNOWN_CACHE . md5($wellKnownConfigUrl));
+            if ($metadata) {
+                // Just for sure also validate metadata from cache
+                $this->validateMetadataIssuer($metadata);
+                return $metadata;
             }
         }
 
@@ -858,13 +866,15 @@ class OpenIDConnectClient
         if (!$response->isSuccess()) {
             throw new OpenIDConnectClientException("Invalid response code $response->responseCode when fetching wellKnow, expected 200");
         }
-        $wellKnown = Json::decode($response->data);
+        $metadata = Json::decode($response->data);
+
+        $this->validateMetadataIssuer($metadata);
 
         if ($this->wellknownCacheExpiration && function_exists('apcu_store')) {
-            apcu_store(self::WELLKNOWN_CACHE . md5($wellKnownConfigUrl), $wellKnown, $this->wellknownCacheExpiration);
+            apcu_store(self::WELLKNOWN_CACHE . md5($wellKnownConfigUrl), $metadata, $this->wellknownCacheExpiration);
         }
 
-        return $wellKnown;
+        return $metadata;
     }
 
     /**
@@ -881,7 +891,7 @@ class OpenIDConnectClient
         // If the configuration value is not available, attempt to fetch it from a well known config endpoint
         // This is also known as auto "discovery"
         if (!$this->wellKnown) {
-            $this->wellKnown = $this->fetchWellKnown();
+            $this->wellKnown = $this->fetchProviderMetadata();
         }
 
         if (isset($this->wellKnown->{$param})) {
@@ -1790,14 +1800,13 @@ class OpenIDConnectClient
     }
 
     /**
-     * @param bool $appendSlash
      * @return string
      * @throws OpenIDConnectClientException
      * @throws JsonException
      */
-    public function getWellKnownIssuer(bool $appendSlash = false): string
+    public function getWellKnownIssuer(): string
     {
-        return $this->getWellKnownConfigValue('issuer') . ($appendSlash ? '/' : '');
+        return $this->getWellKnownConfigValue('issuer');
     }
 
     /**
@@ -1969,6 +1978,12 @@ class OpenIDConnectClient
     {
         if (!filter_var($providerUrl, FILTER_VALIDATE_URL)) {
             throw new \InvalidArgumentException("Provider URL must be valid URL.");
+        }
+
+        // If provider already contains well-known part, we will strip it
+        $wellKnownPart = strpos($providerUrl, '/.well-known/openid-configuration');
+        if ($wellKnownPart !== false) {
+            $providerUrl = substr($providerUrl, 0, $wellKnownPart + 1);
         }
 
         $this->providerConfig['providerUrl'] = $providerUrl;
