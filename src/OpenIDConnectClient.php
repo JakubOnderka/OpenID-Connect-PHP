@@ -408,6 +408,11 @@ class OpenIDConnectClient
         LOGOUT_JTI = 'openid_connect_logout_jti_';
 
     /**
+     * @var string
+     */
+    private $providerUrl;
+
+    /**
      * @var string arbitrary id value
      */
     private $clientID;
@@ -1806,10 +1811,10 @@ class OpenIDConnectClient
      */
     public function getProviderURL(): string
     {
-        if (!isset($this->providerConfig['providerUrl'])) {
+        if (!isset($this->providerUrl)) {
             throw new OpenIDConnectClientException('The provider URL has not been set');
         }
-        return $this->providerConfig['providerUrl'];
+        return $this->providerUrl;
     }
 
     /**
@@ -1965,7 +1970,7 @@ class OpenIDConnectClient
             $providerUrl = substr($providerUrl, 0, $wellKnownPart + 1);
         }
 
-        $this->providerConfig['providerUrl'] = $providerUrl;
+        $this->providerUrl = $providerUrl;
     }
 
     /**
