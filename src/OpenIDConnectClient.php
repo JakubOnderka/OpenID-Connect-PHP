@@ -415,7 +415,8 @@ class OpenIDConnectClient
 
     // APCu cache keys
     const KEYS_CACHE = 'openid_connect_key_',
-        WELLKNOWN_CACHE = 'openid_connect_wellknown_';
+        WELLKNOWN_CACHE = 'openid_connect_wellknown_',
+        LOGOUT_JTI = 'openid_connect_logout_jti_';
 
     /**
      * @var string arbitrary id value
@@ -1478,6 +1479,14 @@ class OpenIDConnectClient
         // (6). Verify that the Logout Token does not contain a nonce Claim.
         if (isset($claims->nonce)) {
             throw new TokenValidationFailed("Prohibited `nonce` claim provided");
+        }
+
+        // (7). Optionally verify that another Logout Token with the same jti value has not been recently received.
+        if (isset($claims->jti) && function_exists('apcu_exists')) {
+            if (apcu_exists(self::LOGOUT_JTI . $claims->jti)) {
+                throw new TokenValidationFailed("`jti` was recently used", null, $claims->jti);
+            }
+            apcu_store(self::LOGOUT_JTI . $claims->jti, true, 600);
         }
     }
 
