@@ -1422,27 +1422,30 @@ class OpenIDConnectClient
 
     /**
      * @param string $jwt
-     * @return \stdClass Token claims
+     * @return Jwt Verified and validated token
      * @throws JsonException
      * @throws OpenIDConnectClientException
      * @throws TokenValidationFailed
      */
-    public function processLogoutToken(string $jwt): \stdClass
+    public function processLogoutToken(string $jwt): Jwt
     {
         $this->verifyJwtSignature($jwt);
-        $claims = (new Jwt($jwt))->payload();
-        $this->validateLogoutToken($claims);
-        return $claims;
+        $token = new Jwt($jwt);
+        $this->validateLogoutToken($token);
+        return $token;
     }
 
     /**
      * @return void
      * @throws TokenValidationFailed
      * @throws OpenIDConnectClientException
+     * @throws JsonException
      * @see https://openid.net/specs/openid-connect-backchannel-1_0.html#Validation
      */
-    protected function validateLogoutToken(\stdClass $claims)
+    protected function validateLogoutToken(Jwt $jwt)
     {
+        $claims = $jwt->payload();
+
         // (3). Validate the iss, aud, and iat Claims in the same way they are validated in ID Tokens.
         if (!isset($claims->iss)) {
             throw new TokenValidationFailed("Required `iss` claim not provided");
@@ -1586,11 +1589,7 @@ class OpenIDConnectClient
             return $idTokenClaims;
         }
 
-        if (property_exists($idTokenClaims, $attribute)) {
-            return $idTokenClaims->$attribute;
-        }
-
-        return null;
+        return $idTokenClaims->$attribute ?? null;
     }
 
     /**
