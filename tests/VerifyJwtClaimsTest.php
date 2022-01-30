@@ -21,7 +21,7 @@ namespace {
     use JakubOnderka\Json;
     use JakubOnderka\OpenIDConnectClient;
     use JakubOnderka\OpenIDConnectClientException;
-    use JakubOnderka\VerifyJwtClaimFailed;
+    use JakubOnderka\TokenValidationFailed;
     use PHPUnit\Framework\MockObject\MockObject;
     use PHPUnit\Framework\TestCase;
     use function JakubOnderka\base64url_encode;
@@ -233,7 +233,7 @@ namespace {
                 $this->fail('No exception thrown');
             } catch (Exception $e) {
                 $this->assertInstanceOf(OpenIDConnectClientException::class, $e);
-                $this->assertInstanceOf(VerifyJwtClaimFailed::class, $e->getPrevious(), $e->getMessage());
+                $this->assertInstanceOf(TokenValidationFailed::class, $e->getPrevious(), $e->getMessage());
                 $this->assertEquals($message, $e->getPrevious()->getMessage());
             }
         }

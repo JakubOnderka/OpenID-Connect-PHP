@@ -147,7 +147,7 @@ class OpenIDConnectClientException extends \Exception
 {
 }
 
-class VerifyJwtClaimFailed extends \Exception
+class TokenValidationFailed extends \Exception
 {
     /**
      * @param string $message
@@ -688,7 +688,7 @@ class OpenIDConnectClient
             // If this is a valid claim
             try {
                 $this->validateIdToken($claims, $tokenJson->access_token);
-            } catch (VerifyJwtClaimFailed $e) {
+            } catch (TokenValidationFailed $e) {
                 throw new OpenIDConnectClientException('Unable to verify JWT claims', 0, $e);
             } finally {
                 // Remove nonce from session to avoid replay attacks
@@ -739,7 +739,7 @@ class OpenIDConnectClient
             // If this is a valid claim
             try {
                 $this->validateIdToken($claims, $accessToken);
-            } catch (VerifyJwtClaimFailed $e) {
+            } catch (TokenValidationFailed $e) {
                 throw new OpenIDConnectClientException('Unable to verify JWT claims', 0, $e);
             } finally {
                 // Remove nonce from session to avoid replay attacks
@@ -1460,43 +1460,43 @@ class OpenIDConnectClient
      * @return void
      * @throws OpenIDConnectClientException
      * @throws JsonException
-     * @throws VerifyJwtClaimFailed
+     * @throws TokenValidationFailed
      */
     protected function validateIdToken(\stdClass $claims, string $accessToken = null)
     {
         // (2). The Client MUST validate that the aud (audience) Claim contains its client_id value registered at the Issuer identified by the iss (issuer) Claim as an audience.
         if (!isset($claims->iss)) {
-            throw new VerifyJwtClaimFailed("Required `iss` claim not provided");
+            throw new TokenValidationFailed("Required `iss` claim not provided");
         } elseif (!($this->issuerValidator)($claims->iss)) {
-            throw new VerifyJwtClaimFailed("It didn't pass issuer validator", $this->getIssuer(), $claims->iss);
+            throw new TokenValidationFailed("It didn't pass issuer validator", $this->getIssuer(), $claims->iss);
         }
 
         // (3). Audience
         if (!isset($claims->aud)) {
-            throw new VerifyJwtClaimFailed("Required `aud` claim not provided");
+            throw new TokenValidationFailed("Required `aud` claim not provided");
         } elseif ($claims->aud !== $this->clientID && !in_array($this->clientID, (array)$claims->aud, true)) {
-            throw new VerifyJwtClaimFailed("Client ID do not match to `aud` claim", $this->clientID, $claims->aud);
+            throw new TokenValidationFailed("Client ID do not match to `aud` claim", $this->clientID, $claims->aud);
         }
 
         // (4). If the ID Token contains multiple audiences, the Client SHOULD verify that an azp Claim is present.
         if (is_array($claims->aud) && count($claims->aud) > 1 && !isset($claims->azp)) {
-            throw new VerifyJwtClaimFailed("Multiple audiences provided, but `azp` claim not provided");
+            throw new TokenValidationFailed("Multiple audiences provided, but `azp` claim not provided");
         }
 
         // (5). If an azp (authorized party) Claim is present, the Client SHOULD verify that its client_id is the Claim Value.
         if (isset($claims->azp) && $claims->azp !== $this->clientID) {
-            throw new VerifyJwtClaimFailed("Client ID do not match to `azp` claim", $this->clientID, $claims->azp);
+            throw new TokenValidationFailed("Client ID do not match to `azp` claim", $this->clientID, $claims->azp);
         }
 
         $time = time();
 
         // (9). Token expiration time
         if (!isset($claims->exp)) {
-            throw new VerifyJwtClaimFailed("Required `exp` claim not provided");
+            throw new TokenValidationFailed("Required `exp` claim not provided");
         } elseif (!is_int($claims->exp) && !is_double($claims->exp)) {
-            throw new VerifyJwtClaimFailed("Required `exp` claim provided, but type is incorrect", 'int', gettype($claims->exp));
+            throw new TokenValidationFailed("Required `exp` claim provided, but type is incorrect", 'int', gettype($claims->exp));
         } elseif ($claims->exp < $time) {
-            throw new VerifyJwtClaimFailed("Token is already expired", $time, $claims->exp);
+            throw new TokenValidationFailed("Token is already expired", $time, $claims->exp);
         }
 
         // (10). Time at which the JWT was issued.
@@ -1505,11 +1505,11 @@ class OpenIDConnectClient
         // (11).
         $sessionNonce = $this->getSessionKey(self::NONCE);
         if (!isset($claims->nonce)) {
-            throw new VerifyJwtClaimFailed("Required `nonce` claim not provided");
+            throw new TokenValidationFailed("Required `nonce` claim not provided");
         } elseif ($sessionNonce === null) {
-            throw new VerifyJwtClaimFailed("Session nonce is not set");
+            throw new TokenValidationFailed("Session nonce is not set");
         } elseif (!hash_equals($sessionNonce, $claims->nonce)) {
-            throw new VerifyJwtClaimFailed("Nonce do not match", $sessionNonce, $claims->nonce);
+            throw new TokenValidationFailed("Nonce do not match", $sessionNonce, $claims->nonce);
         }
 
         if (isset($claims->at_hash) && isset($accessToken)) {
@@ -1520,11 +1520,11 @@ class OpenIDConnectClient
                 // This should never happened, because alg is already checked in verifyJwtSignature method
                 throw new OpenIDConnectClientException("Invalid ID token alg");
             }
-            $len = ((int)$bit) / 16;
+            $len = $bit / 16;
             $expectedAtHash = base64url_encode(substr(hash('sha' . $bit, $accessToken, true), 0, $len));
 
             if (!hash_equals($expectedAtHash, $claims->at_hash)) {
-                throw new VerifyJwtClaimFailed("`at_hash` claim do not match", $expectedAtHash, $claims->at_hash);
+                throw new TokenValidationFailed("`at_hash` claim do not match", $expectedAtHash, $claims->at_hash);
             }
         }
     }
@@ -1534,7 +1534,7 @@ class OpenIDConnectClient
      * @return \stdClass Token claims
      * @throws JsonException
      * @throws OpenIDConnectClientException
-     * @throws VerifyJwtClaimFailed
+     * @throws TokenValidationFailed
      */
     public function processLogoutToken(string $jwt): \stdClass
     {
@@ -1546,7 +1546,7 @@ class OpenIDConnectClient
 
     /**
      * @return void
-     * @throws VerifyJwtClaimFailed
+     * @throws TokenValidationFailed
      * @throws OpenIDConnectClientException
      * @see https://openid.net/specs/openid-connect-backchannel-1_0.html#Validation
      */
@@ -1554,35 +1554,35 @@ class OpenIDConnectClient
     {
         // (3). Validate the iss, aud, and iat Claims in the same way they are validated in ID Tokens.
         if (!isset($claims->iss)) {
-            throw new VerifyJwtClaimFailed("Required `iss` claim not provided");
+            throw new TokenValidationFailed("Required `iss` claim not provided");
         } elseif (!($this->issuerValidator)($claims->iss)) {
-            throw new VerifyJwtClaimFailed("It didn't pass issuer validator", $this->getIssuer(), $claims->iss);
+            throw new TokenValidationFailed("It didn't pass issuer validator", $this->getIssuer(), $claims->iss);
         }
 
         if (!isset($claims->aud)) {
-            throw new VerifyJwtClaimFailed("Required `aud` claim not provided");
+            throw new TokenValidationFailed("Required `aud` claim not provided");
         } elseif ($claims->aud !== $this->clientID && !in_array($this->clientID, (array)$claims->aud, true)) {
-            throw new VerifyJwtClaimFailed("Client ID do not match to `aud` claim", $this->clientID, $claims->aud);
+            throw new TokenValidationFailed("Client ID do not match to `aud` claim", $this->clientID, $claims->aud);
         }
 
         $this->validateIat($claims, time());
 
         // (4). Verify that the Logout Token contains a sub Claim, a sid Claim, or both.
         if (!isset($claims->sub) && !isset($claims->sid)) {
-            throw new VerifyJwtClaimFailed("Required `sub` or `sid` claim not provided");
+            throw new TokenValidationFailed("Required `sub` or `sid` claim not provided");
         }
 
         // (5). Verify that the Logout Token contains an events Claim whose value is JSON object containing
         // the member name http://schemas.openid.net/event/backchannel-logout.
         if (!isset($claims->events)) {
-            throw new VerifyJwtClaimFailed("Required `events` claim not provided");
+            throw new TokenValidationFailed("Required `events` claim not provided");
         } elseif (!isset($claims->events->{'http://schemas.openid.net/event/backchannel-logout'})) {
-            throw new VerifyJwtClaimFailed("`events` claim do not contains required member name");
+            throw new TokenValidationFailed("`events` claim do not contains required member name");
         }
 
         // (6). Verify that the Logout Token does not contain a nonce Claim.
         if (isset($claims->nonce)) {
-            throw new VerifyJwtClaimFailed("Prohibited `nonce` claim provided");
+            throw new TokenValidationFailed("Prohibited `nonce` claim provided");
         }
     }
 
@@ -1590,19 +1590,19 @@ class OpenIDConnectClient
      * @param \stdClass $claims
      * @param int $time
      * @return void
-     * @throws VerifyJwtClaimFailed
+     * @throws TokenValidationFailed
      */
     private function validateIat(\stdClass $claims, int $time)
     {
         $idTokenIatSlack = 600;
         if (!isset($claims->iat)) {
-            throw new VerifyJwtClaimFailed("Required `iat` claim not provided");
+            throw new TokenValidationFailed("Required `iat` claim not provided");
         } elseif (!is_int($claims->iat) && !is_double($claims->iat)) {
-            throw new VerifyJwtClaimFailed("Required `iat` claim provided, but type is incorrect", 'int', gettype($claims->iat));
+            throw new TokenValidationFailed("Required `iat` claim provided, but type is incorrect", 'int', gettype($claims->iat));
         } elseif (($time - $idTokenIatSlack) > $claims->iat) {
-            throw new VerifyJwtClaimFailed("Token was issued more than $idTokenIatSlack seconds ago", $time - $idTokenIatSlack, $claims->iat);
+            throw new TokenValidationFailed("Token was issued more than $idTokenIatSlack seconds ago", $time - $idTokenIatSlack, $claims->iat);
         } elseif (($time + $idTokenIatSlack) < $claims->iat) {
-            throw new VerifyJwtClaimFailed("Token was issued more than $idTokenIatSlack seconds in future", $time + $idTokenIatSlack, $claims->iat);
+            throw new TokenValidationFailed("Token was issued more than $idTokenIatSlack seconds in future", $time + $idTokenIatSlack, $claims->iat);
         }
     }
 
