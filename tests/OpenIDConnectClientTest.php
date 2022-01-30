@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 use JakubOnderka\CurlResponse;
 use JakubOnderka\OpenIDConnectClient;
+use JakubOnderka\Jwt;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -298,7 +299,7 @@ class OpenIDConnectClientTest extends TestCase
         $client = $this->getMockBuilder(OpenIDConnectClient::class)
             ->setMethods(['fetchURL', 'getResponseCode'])
             ->getMock();
-        $client->setAccessToken('aa.bb.cc');
+        $client->setAccessToken(new Jwt('aa.bb.cc'));
         $client->providerConfigParam([
             'userinfo_endpoint' => 'https://example.com',
         ]);

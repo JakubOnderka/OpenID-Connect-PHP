@@ -332,6 +332,69 @@ abstract class JwkEcFormat
     }
 }
 
+class Jwt
+{
+    /** @var string */
+    private $token;
+
+    public function __construct(string $token)
+    {
+        $this->token = $token;
+    }
+
+    /**
+     * @throws JsonException
+     * @throws \Exception
+     */
+    public function header(): \stdClass
+    {
+        $headerPart = strstr($this->token, '.', true);
+        if ($headerPart === false) {
+            throw new \Exception("Invalid token provided, header part not found.");
+        }
+        return Json::decode(base64url_decode($headerPart));
+    }
+
+    /**
+     * @return \stdClass
+     * @throws JsonException
+     * @throws \Exception
+     */
+    public function payload(): \stdClass
+    {
+        $start = strpos($this->token, '.') + 1;
+        if ($start === false) {
+            throw new \Exception("Token is not in valid format, first `.` separator not found");
+        }
+        $end = strpos($this->token, '.', $start);
+        if ($end === false) {
+            throw new \Exception("Token is not in valid format, second `.` separator not found");
+        }
+        return Json::decode(base64url_decode(substr($this->token, $start, $end - $start)));
+    }
+
+    /**
+     * @return string
+     * @throws \Exception
+     */
+    public function signature(): string
+    {
+        $signaturePart = strrchr($this->token, ".");
+        if ($signaturePart === false) {
+            throw new \Exception("Invalid token provided, signature part not found.");
+        }
+        return base64url_decode(substr($signaturePart, 1));
+    }
+
+    /**
+     * @return string
+     */
+    public function __toString()
+    {
+        return $this->token;
+    }
+}
+
 class OpenIDConnectClient
 {
     // Session keys
@@ -384,17 +447,17 @@ class OpenIDConnectClient
     private $verifyHost = true;
 
     /**
-     * @var string|null if we acquire an access token it will be stored here
+     * @var Jwt|null if we acquire an access token it will be stored here
      */
     protected $accessToken;
 
     /**
-     * @var string|null if we acquire a refresh token it will be stored here
+     * @var Jwt|null if we acquire a refresh token it will be stored here
      */
     private $refreshToken;
 
     /**
-     * @var string|null if we acquire an id token it will be stored here
+     * @var Jwt|null if we acquire an id token it will be stored here
      */
     protected $idToken;
 
@@ -610,18 +673,17 @@ class OpenIDConnectClient
                 throw new OpenIDConnectClientException('User did not authorize openid scope.');
             }
 
-            $claims = $this->decodeJWT($tokenJson->id_token, 1);
-
             // Verify the signature
             if (!$this->verifyJwtSignature($tokenJson->id_token)) {
                 throw new OpenIDConnectClientException('Unable to verify signature of ID token');
             }
 
             // Save the id token
-            $this->idToken = $tokenJson->id_token;
+            $this->idToken = new Jwt($tokenJson->id_token);
+            $claims = $this->idToken->payload();
 
             // Save the access token
-            $this->accessToken = $tokenJson->access_token;
+            $this->accessToken = new Jwt($tokenJson->access_token);
 
             // If this is a valid claim
             try {
@@ -641,7 +703,7 @@ class OpenIDConnectClient
 
             // Save the refresh token, if we got one
             if (isset($tokenJson->refresh_token)) {
-                $this->refreshToken = $tokenJson->refresh_token;
+                $this->refreshToken = new Jwt($tokenJson->refresh_token);
             }
 
             // Success!
@@ -665,15 +727,14 @@ class OpenIDConnectClient
             // Cleanup state
             $this->unsetSessionKey(self::STATE);
 
-            $claims = $this->decodeJWT($id_token, 1);
-
             // Verify the signature
             if (!$this->verifyJwtSignature($id_token)) {
                 throw new OpenIDConnectClientException('Unable to verify ID token signature');
             }
 
             // Save the id token
-            $this->idToken = $id_token;
+            $this->idToken = new Jwt($id_token);
+            $claims = $this->idToken->payload();
 
             // If this is a valid claim
             try {
@@ -690,7 +751,7 @@ class OpenIDConnectClient
 
             // Save the access token
             if ($accessToken) {
-                $this->accessToken = $accessToken;
+                $this->accessToken = new Jwt($accessToken);
             }
 
             // Success!
@@ -1178,11 +1239,11 @@ class OpenIDConnectClient
         $json = $this->tokenEndpointRequest($tokenParams);
 
         if (isset($json->access_token)) {
-            $this->accessToken = $json->access_token;
+            $this->accessToken = new Jwt($json->access_token);
         }
 
         if (isset($json->refresh_token)) {
-            $this->refreshToken = $json->refresh_token;
+            $this->refreshToken = new Jwt($json->refresh_token);
         }
 
         return $json;
@@ -1425,7 +1486,7 @@ class OpenIDConnectClient
         }
 
         if (isset($claims->at_hash) && isset($accessToken)) {
-            $idTokenHeader = $this->getIdTokenHeader();
+            $idTokenHeader = $this->idToken->header();
             if (isset($idTokenHeader->alg) && $idTokenHeader->alg !== 'none') {
                 $bit = substr($idTokenHeader->alg, 2, 3);
             } else {
@@ -1451,7 +1512,7 @@ class OpenIDConnectClient
     public function processLogoutToken(string $jwt): \stdClass
     {
         $this->verifyJwtSignature($jwt);
-        $claims = $this->decodeJWT($jwt, 1);
+        $claims = (new Jwt($jwt))->payload();
         $this->verifyLogoutTokenClaims($claims);
         return $claims;
     }
@@ -1518,22 +1579,6 @@ class OpenIDConnectClient
     }
 
     /**
-     * @param string $jwt encoded JWT
-     * @param int $section the section we would like to decode
-     * @return \stdClass
-     * @throws \RuntimeException
-     * @throws JsonException
-     */
-    protected function decodeJWT(string $jwt, int $section = 0): \stdClass
-    {
-        $parts = explode('.', $jwt);
-        if (!isset($parts[$section])) {
-            throw new \RuntimeException("Section $section is not included in JWT token");
-        }
-        return Json::decode(base64url_decode($parts[$section]));
-    }
-
-    /**
      * @param string|null $attribute Name of the attribute to get. If null, all attributes will be returned
      *
      * Attribute        Type        Description
@@ -1577,7 +1622,7 @@ class OpenIDConnectClient
             // The accessToken has to be sent in the Authorization header.
             // Accept json to indicate response type
             $headers = [
-                "Authorization: Bearer {$this->accessToken}",
+                "Authorization: Bearer $this->accessToken",
                 'Accept: application/json',
             ];
 
@@ -1727,7 +1772,7 @@ class OpenIDConnectClient
             if (!$this->verifyJwtSignature($response->data)) {
                 throw new OpenIDConnectClientException('Unable to verify signature');
             }
-            return $this->decodeJWT($response->data, 1);
+            return (new Jwt($response->data))->payload();
         }
         return Json::decode($response->data);
     }
@@ -2054,16 +2099,16 @@ class OpenIDConnectClient
      *
      * May be required for subclasses of this Client.
      *
-     * @param string $accessToken
+     * @param Jwt $accessToken
      * @return void
      */
-    public function setAccessToken(string $accessToken)
+    public function setAccessToken(Jwt $accessToken)
     {
         $this->accessToken = $accessToken;
     }
 
     /**
-     * @return string|null
+     * @return Jwt|null
      */
     public function getAccessToken()
     {
@@ -2071,7 +2116,7 @@ class OpenIDConnectClient
     }
 
     /**
-     * @return string|null
+     * @return Jwt|null
      */
     public function getRefreshToken()
     {
@@ -2079,63 +2124,11 @@ class OpenIDConnectClient
     }
 
     /**
-     * @return string|null
+     * @return Jwt|null
      */
     public function getIdToken()
     {
         return $this->idToken;
-    }
-
-    /**
-     * @return \stdClass
-     * @throws JsonException
-     * @throws \RuntimeException
-     */
-    public function getAccessTokenHeader(): \stdClass
-    {
-        if (!isset($this->accessToken)) {
-            throw new \RuntimeException("Access token not set");
-        }
-        return $this->decodeJWT($this->accessToken);
-    }
-
-    /**
-     * @return \stdClass
-     * @throws JsonException
-     * @throws \RuntimeException
-     */
-    public function getAccessTokenPayload(): \stdClass
-    {
-        if (!isset($this->accessToken)) {
-            throw new \RuntimeException("Access token not set");
-        }
-        return $this->decodeJWT($this->accessToken, 1);
-    }
-
-    /**
-     * @return \stdClass
-     * @throws JsonException
-     * @throws \RuntimeException
-     */
-    public function getIdTokenHeader(): \stdClass
-    {
-        if (!isset($this->idToken)) {
-            throw new \RuntimeException("ID token not set");
-        }
-        return $this->decodeJWT($this->idToken);
-    }
-
-    /**
-     * @return \stdClass
-     * @throws JsonException
-     * @throws \RuntimeException
-     */
-    public function getIdTokenPayload(): \stdClass
-    {
-        if (!isset($this->idToken)) {
-            throw new \RuntimeException("ID token not set");
-        }
-        return $this->decodeJWT($this->idToken, 1);
     }
 
     /**

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### BC
 * Required PHP 7.0 or newer
 * Required [phpseclib/phpseclib](https://phpseclib.com/) version **3**.
+* Removed `getIdTokenPayload`, `getIdTokenHeader`, `getAccessTokenPayload` and `getAccessTokenHeader` methods
+* Methods `getIdToken`, `getRefreshToken` and `getAccessToken` returns instance of Jwt class
 
 ### Added
 * Support for new JWT token signature algorithm:
