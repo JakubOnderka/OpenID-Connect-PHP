@@ -687,7 +687,7 @@ class OpenIDConnectClient
 
             // If this is a valid claim
             try {
-                $this->verifyJwtClaims($claims, $tokenJson->access_token);
+                $this->validateIdToken($claims, $tokenJson->access_token);
             } catch (VerifyJwtClaimFailed $e) {
                 throw new OpenIDConnectClientException('Unable to verify JWT claims', 0, $e);
             } finally {
@@ -738,7 +738,7 @@ class OpenIDConnectClient
 
             // If this is a valid claim
             try {
-                $this->verifyJwtClaims($claims, $accessToken);
+                $this->validateIdToken($claims, $accessToken);
             } catch (VerifyJwtClaimFailed $e) {
                 throw new OpenIDConnectClientException('Unable to verify JWT claims', 0, $e);
             } finally {
@@ -1226,7 +1226,7 @@ class OpenIDConnectClient
             $params['client_assertion_type'] = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
             $params['client_assertion'] = $jwt;
         } elseif (in_array('client_secret_basic', $authMethodsSupported, true) && $this->authenticationMethod !== 'client_secret_post') {
-            $headers = [$this->basicAuthorizationHeader($this->clientID, $this->clientSecret)];
+            $headers = ['Authorization: Basic ' . base64_encode(urlencode($this->clientID) . ':' . urlencode($this->clientSecret))];
         } else { // client_secret_post fallback
             $params['client_id'] = $this->clientID;
             $params['client_secret'] = $this->clientSecret;
@@ -1462,7 +1462,7 @@ class OpenIDConnectClient
      * @throws JsonException
      * @throws VerifyJwtClaimFailed
      */
-    protected function verifyJwtClaims(\stdClass $claims, string $accessToken = null)
+    protected function validateIdToken(\stdClass $claims, string $accessToken = null)
     {
         // (2). The Client MUST validate that the aud (audience) Claim contains its client_id value registered at the Issuer identified by the iss (issuer) Claim as an audience.
         if (!isset($claims->iss)) {
@@ -1500,7 +1500,7 @@ class OpenIDConnectClient
         }
 
         // (10). Time at which the JWT was issued.
-        $this->verifyIat($claims, $time);
+        $this->validateIat($claims, $time);
 
         // (11).
         $sessionNonce = $this->getSessionKey(self::NONCE);
@@ -1540,16 +1540,17 @@ class OpenIDConnectClient
     {
         $this->verifyJwtSignature($jwt);
         $claims = (new Jwt($jwt))->payload();
-        $this->verifyLogoutTokenClaims($claims);
+        $this->validateLogoutToken($claims);
         return $claims;
     }
 
     /**
+     * @return void
      * @throws VerifyJwtClaimFailed
      * @throws OpenIDConnectClientException
      * @see https://openid.net/specs/openid-connect-backchannel-1_0.html#Validation
      */
-    protected function verifyLogoutTokenClaims(\stdClass $claims)
+    protected function validateLogoutToken(\stdClass $claims)
     {
         // (3). Validate the iss, aud, and iat Claims in the same way they are validated in ID Tokens.
         if (!isset($claims->iss)) {
@@ -1564,7 +1565,7 @@ class OpenIDConnectClient
             throw new VerifyJwtClaimFailed("Client ID do not match to `aud` claim", $this->clientID, $claims->aud);
         }
 
-        $this->verifyIat($claims, time());
+        $this->validateIat($claims, time());
 
         // (4). Verify that the Logout Token contains a sub Claim, a sid Claim, or both.
         if (!isset($claims->sub) && !isset($claims->sid)) {
@@ -1591,7 +1592,7 @@ class OpenIDConnectClient
      * @return void
      * @throws VerifyJwtClaimFailed
      */
-    private function verifyIat(\stdClass $claims, int $time)
+    private function validateIat(\stdClass $claims, int $time)
     {
         $idTokenIatSlack = 600;
         if (!isset($claims->iat)) {
@@ -2308,16 +2309,6 @@ class OpenIDConnectClient
         }
 
         $this->authenticationMethod = $authenticationMethod;
-    }
-
-    /**
-     * @param string $clientId
-     * @param string $clientSecret
-     * @return string
-     */
-    private function basicAuthorizationHeader(string $clientId, string $clientSecret): string
-    {
-        return 'Authorization: Basic ' . base64_encode(urlencode($clientId) . ':' . urlencode($clientSecret));
     }
 
     /**
