@@ -447,7 +447,9 @@ class OpenIDConnectClient
     private $httpProxy;
 
     /**
-     * @var string|null Full system path to the SSL/TLS public certificate
+     * Full system path to the SSL/TLS public certificate, that will be used to validate remote server certificates.
+     * When not set, system certificates will be used. Makes sense just when `verifyPeer` is set to true.
+     * @var string|null
      */
     private $certPath;
 
@@ -519,7 +521,8 @@ class OpenIDConnectClient
     private $wellKnownConfigParameters = [];
 
     /**
-     * @var int timeout (seconds)
+     * Remote requests timeout in seconds
+     * @var int
      */
     protected $timeOut = 60;
 
@@ -551,7 +554,7 @@ class OpenIDConnectClient
     /**
      * @var int
      */
-    protected $enc_type = PHP_QUERY_RFC1738;
+    protected $encType = PHP_QUERY_RFC1738;
 
     /**
      * @var bool Enable or disable upgrading to HTTPS by paying attention to HTTP header HTTP_UPGRADE_INSECURE_REQUESTS
@@ -600,9 +603,9 @@ class OpenIDConnectClient
      */
     public function __construct(string $providerUrl = null, string $clientId = null, string $clientSecret = null, string $issuer = null)
     {
-        // Require the CURL and JSON PHP extensions to be installed
+        // Require the cURL and JSON PHP extensions to be installed
         if (!function_exists('curl_init')) {
-            throw new OpenIDConnectClientException('OpenIDConnectClient requires the CURL PHP extension.');
+            throw new OpenIDConnectClientException('OpenIDConnectClient requires the cURL PHP extension.');
         }
         if (!function_exists('json_decode')) {
             throw new OpenIDConnectClientException('OpenIDConnectClient requires the JSON PHP extension.');
@@ -758,11 +761,11 @@ class OpenIDConnectClient
             $signoutParams['post_logout_redirect_uri'] = $redirect;
         }
 
-        $signoutEndpoint = $this->getProviderConfigValue('end_session_endpoint');
-        $signoutEndpoint .= strpos($signoutEndpoint, '?') === false ? '?' : '&';
-        $signoutEndpoint .= http_build_query($signoutParams, '', '&', $this->enc_type);
+        $endSessionEndpoint = $this->getProviderConfigValue('end_session_endpoint');
+        $endSessionEndpoint .= strpos($endSessionEndpoint, '?') === false ? '?' : '&';
+        $endSessionEndpoint .= http_build_query($signoutParams, '', '&', $this->encType);
 
-        $this->redirect($signoutEndpoint);
+        $this->redirect($endSessionEndpoint);
     }
 
     /**
@@ -1052,7 +1055,7 @@ class OpenIDConnectClient
         $authEndpoint = $this->getProviderConfigValue('authorization_endpoint');
         // If auth endpoint already contains params, just append &
         $authEndpoint .= strpos($authEndpoint, '?') === false ? '?' : '&';
-        $authEndpoint .= http_build_query($authParams, '', '&', $this->enc_type);
+        $authEndpoint .= http_build_query($authParams, '', '&', $this->encType);
 
         $this->commitSession();
         $this->redirect($authEndpoint);
@@ -1547,7 +1550,7 @@ class OpenIDConnectClient
     public function requestUserInfo(string $attribute = null)
     {
         if (!isset($this->accessToken)) {
-            throw new OpenIDConnectClientException("Access token doesn't exists");
+            throw new OpenIDConnectClientException("Access token is not defined");
         }
 
         if (!$this->userInfo) {
@@ -1612,8 +1615,8 @@ class OpenIDConnectClient
         $registration_endpoint = $this->getProviderConfigValue('registration_endpoint');
 
         $send_object = array_merge($this->registrationParams, array(
-            'redirect_uris' => array($this->getRedirectURL()),
-            'client_name' => $this->getClientName(),
+            'redirect_uris' => [$this->getRedirectURL()],
+            'client_name' => $this->clientName,
         ));
 
         $response = $this->fetchURL($registration_endpoint, Json::encode($send_object));
@@ -1989,7 +1992,7 @@ class OpenIDConnectClient
     public function setUrlEncoding(int $urlEncoding)
     {
         if (in_array($urlEncoding, [PHP_QUERY_RFC1738, PHP_QUERY_RFC3986], true)) {
-            $this->enc_type = $urlEncoding;
+            $this->encType = $urlEncoding;
         } else {
             throw new \InvalidArgumentException("Unsupported encoding provided");
         }
@@ -2134,68 +2137,71 @@ class OpenIDConnectClient
             // Share handle between requests to allow keep connection alive between requests
             $this->ch = curl_init();
             if (!$this->ch) {
-                throw new \RuntimeException("Could not initialize curl");
+                throw new \RuntimeException("Could not initialize cURL");
             }
         } else {
             // Reset options, so we can do another request
             curl_reset($this->ch);
         }
 
-        // Determine whether this is a GET or POST
-        if ($postBody !== null) {
-            // Default content type is form encoded
-            $contentType = 'application/x-www-form-urlencoded';
-
-            // Determine if this is a JSON payload and add the appropriate content type
-            if (is_array($postBody)) {
-                $postBody = http_build_query($postBody, '', '&', $this->enc_type);
-            } elseif (is_string($postBody) && is_object(json_decode($postBody))) {
-                $contentType = 'application/json';
-            } else {
-                throw new \InvalidArgumentException("Invalid type for postBody, expected array, string or null value");
-            }
-
-            // curl_setopt($this->ch, CURLOPT_POST, 1);
-            // Allows to keep the POST method even after redirect
-            curl_setopt($this->ch, CURLOPT_CUSTOMREQUEST, 'POST');
-            curl_setopt($this->ch, CURLOPT_POSTFIELDS, $postBody);
-
-            // Add POST-specific headers
-            $headers[] = "Content-Type: {$contentType}";
-        }
-
-        // If we set some headers include them
-        if (!empty($headers)) {
-            curl_setopt($this->ch, CURLOPT_HTTPHEADER, $headers);
-        }
-
-        if (isset($this->httpProxy)) {
-            curl_setopt($this->ch, CURLOPT_PROXY, $this->httpProxy);
-        }
-
-        /**
-         * Set cert
-         * Otherwise ignore SSL peer verification
-         */
-        if (isset($this->certPath)) {
-            curl_setopt($this->ch, CURLOPT_CAINFO, $this->certPath);
-        }
-
-        curl_setopt_array($this->ch, [
+        $options = [
             CURLOPT_URL => $url, // Set URL to download
             CURLOPT_FOLLOWLOCATION => true, // Allows to follow redirect
             CURLOPT_SSL_VERIFYPEER => $this->verifyPeer,
             CURLOPT_SSL_VERIFYHOST => $this->verifyHost ? 2 : 0,
             CURLOPT_RETURNTRANSFER => true, // Should cURL return or print out the data? (true = return, false = print)
-            CURLOPT_HEADER => false, CURLOPT_HEADER, // Include header in result?
+            CURLOPT_HEADER => false, // Include header in result?
             CURLOPT_TIMEOUT => $this->timeOut, // Timeout in seconds
-        ]);
+            CURLOPT_USERAGENT => 'OpenIDConnectClient',
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP, // be sure that only HTTP and HTTPS protocols are enabled
+        ];
+
+        // Determine whether this is a GET or POST
+        if ($postBody !== null) {
+            // Determine if this is a JSON payload and add the appropriate content type
+            if (is_array($postBody)) {
+                $contentType = 'application/x-www-form-urlencoded';
+                $postBody = http_build_query($postBody, '', '&', $this->encType);
+            } elseif (is_string($postBody) && is_object(json_decode($postBody))) {
+                $contentType = 'application/json';
+            } else {
+                throw new \InvalidArgumentException("Invalid type for postBody, expected array, JSON string or null value");
+            }
+
+            // curl_setopt($this->ch, CURLOPT_POST, 1);
+            // Allows to keep the POST method even after redirect
+            $options[CURLOPT_CUSTOMREQUEST] = 'POST';
+            $options[CURLOPT_POSTFIELDS] = $postBody;
+
+            // Add POST-specific headers
+            $headers[] = "Content-Type: $contentType";
+        } else {
+            // Enable response compression for GET requests
+            $options[CURLOPT_ENCODING] = "";
+        }
+
+        // If we set some headers include them
+        if (!empty($headers)) {
+            $options[CURLOPT_HTTPHEADER] = $headers;
+        }
+
+        if (isset($this->httpProxy)) {
+            $options[CURLOPT_PROXY] = $this->httpProxy;
+        }
+
+        if (isset($this->certPath)) {
+            $options[CURLOPT_CAINFO] = $this->certPath;
+        }
+
+        if (!curl_setopt_array($this->ch, $options)) {
+            throw new OpenIDConnectClientException('cURL error: Could not set options');
+        }
 
         // Download the given URL, and return output
         $output = curl_exec($this->ch);
 
         if ($output === false) {
-            throw new OpenIDConnectClientException('Curl error: (' . curl_errno($this->ch) . ') ' . curl_error($this->ch));
+            throw new OpenIDConnectClientException('cURL error #' . curl_errno($this->ch) . ': ' . curl_error($this->ch));
         }
 
         $info = curl_getinfo($this->ch);
@@ -2256,7 +2262,7 @@ class OpenIDConnectClient
 
         if ($this->authenticationMethod && !in_array($this->authenticationMethod, $authMethodsSupported)) {
             $supportedMethods = implode(", ", $authMethodsSupported);
-            throw new OpenIDConnectClientException("Token authentication method $this->authenticationMethod is not supported by IdP. Supported methods are: $supportedMethods");
+            throw new OpenIDConnectClientException("Authentication method $this->authenticationMethod is not supported by IdP for $endpointName endpoint. Supported methods are: $supportedMethods");
         }
 
         $headers = ['Accept: application/json'];
