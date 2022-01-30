@@ -408,6 +408,9 @@ class Jwt
 
 class OpenIDConnectClient
 {
+    // In seconds
+    const IAT_SLACK = 600;
+
     // Session keys
     const NONCE = 'openid_connect_nonce',
         STATE = 'openid_connect_state',
@@ -1486,7 +1489,7 @@ class OpenIDConnectClient
             if (apcu_exists(self::LOGOUT_JTI . $claims->jti)) {
                 throw new TokenValidationFailed("`jti` was recently used", null, $claims->jti);
             }
-            apcu_store(self::LOGOUT_JTI . $claims->jti, true, 600);
+            apcu_store(self::LOGOUT_JTI . $claims->jti, true, self::IAT_SLACK);
         }
     }
 
@@ -1498,7 +1501,7 @@ class OpenIDConnectClient
      */
     private function validateIat(\stdClass $claims, int $time)
     {
-        $idTokenIatSlack = 600;
+        $idTokenIatSlack = self::IAT_SLACK;
         if (!isset($claims->iat)) {
             throw new TokenValidationFailed("Required `iat` claim not provided");
         } elseif (!is_int($claims->iat) && !is_double($claims->iat)) {
