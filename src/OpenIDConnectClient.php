@@ -1313,12 +1313,12 @@ class OpenIDConnectClient
     public function verifyJwtSignature(string $jwt): bool
     {
         $parts = explode('.', $jwt);
-        if (!isset($parts[0])) {
-            throw new OpenIDConnectClientException('Error missing part 0 in token');
+        if (count($parts) !== 3) {
+            throw new OpenIDConnectClientException('JWT token is not in valid format AAA.BBB.CCC');
         }
 
         try {
-            $signature = base64url_decode(array_pop($parts));
+            $signature = base64url_decode($parts[2]);
             if ('' === $signature) {
                 throw new \Exception('Decoded signature is empty string');
             }
@@ -1336,7 +1336,7 @@ class OpenIDConnectClient
             throw new OpenIDConnectClientException('Error missing signature type in token header');
         }
 
-        $payload = implode('.', $parts);
+        $payload = "$parts[0].$parts[1]";
         switch ($header->alg) {
             case 'RS256':
             case 'PS256':
