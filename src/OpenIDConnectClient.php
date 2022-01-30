@@ -1421,13 +1421,14 @@ class OpenIDConnectClient
     }
 
     /**
+     * Verify signature and validate claims of back channel logout token.
      * @param string $jwt
      * @return Jwt Verified and validated token
      * @throws JsonException
      * @throws OpenIDConnectClientException
      * @throws TokenValidationFailed
      */
-    public function processLogoutToken(string $jwt): Jwt
+    public function verifyAndValidateLogoutToken(string $jwt): Jwt
     {
         $this->verifyJwtSignature($jwt);
         $token = new Jwt($jwt);
@@ -1527,7 +1528,7 @@ class OpenIDConnectClient
      * address          JSON object The End-User's preferred address. The value of the address member is a JSON [RFC4627] structure containing some or all of the members defined in Section 2.4.2.1.
      * updated_time     string      Time the End-User's information was last updated, represented as a RFC 3339 [RFC3339] datetime. For example, 2011-01-03T23:58:42+0000.
      *
-     * @return mixed
+     * @return mixed|null Returns null when provided attribute doesn't exists.
      * @throws OpenIDConnectClientException
      * @throws JsonException
      */
@@ -1556,11 +1557,7 @@ class OpenIDConnectClient
             return $this->userInfo;
         }
 
-        if (property_exists($this->userInfo, $attribute)) {
-            return $this->userInfo->$attribute;
-        }
-
-        return null;
+        return $this->userInfo->$attribute ?? null;
     }
 
     /**
