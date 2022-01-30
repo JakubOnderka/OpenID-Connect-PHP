@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 * Required [phpseclib/phpseclib](https://phpseclib.com/) version **3**.
 * Removed `getIdTokenPayload`, `getIdTokenHeader`, `getAccessTokenPayload` and `getAccessTokenHeader` methods
 * Methods `getIdToken`, `getRefreshToken` and `getAccessToken` returns instance of Jwt class
+* Method `register` require client name as first parameter, removed methods `getClientName` and `setClientName`
 
 ### Added
 * Support for new JWT token signature algorithm:

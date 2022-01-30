@@ -413,11 +413,6 @@ class OpenIDConnectClient
     private $clientID;
 
     /**
-     * @var string arbitrary name value
-     */
-    private $clientName;
-
-    /**
      * @var string arbitrary secret value
      */
     private $clientSecret;
@@ -1623,13 +1618,13 @@ class OpenIDConnectClient
      * @throws OpenIDConnectClientException
      * @throws JsonException
      */
-    public function register()
+    public function register(string $clientName)
     {
         $registration_endpoint = $this->getProviderConfigValue('registration_endpoint');
 
         $send_object = array_merge($this->registrationParams, array(
             'redirect_uris' => [$this->getRedirectURL()],
-            'client_name' => $this->clientName,
+            'client_name' => $clientName,
         ));
 
         $response = $this->fetchURL($registration_endpoint, Json::encode($send_object));
@@ -1702,22 +1697,6 @@ class OpenIDConnectClient
             return true;
         }
         throw new OpenIDConnectClientException(Json::decode($response->data));
-    }
-
-    /**
-     * @return string|null
-     */
-    public function getClientName()
-    {
-        return $this->clientName;
-    }
-
-    /**
-     * @param string $clientName
-     */
-    public function setClientName(string $clientName)
-    {
-        $this->clientName = $clientName;
     }
 
     /**
