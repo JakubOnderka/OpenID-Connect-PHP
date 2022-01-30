@@ -615,33 +615,6 @@ class OpenIDConnectClient
     }
 
     /**
-     * @param string $providerUrl
-     * @return void
-     */
-    public function setProviderURL(string $providerUrl)
-    {
-        $this->providerConfig['providerUrl'] = $providerUrl;
-    }
-
-    /**
-     * @param string $issuer
-     * @return void
-     */
-    public function setIssuer(string $issuer)
-    {
-        $this->providerConfig['issuer'] = $issuer;
-    }
-
-    /**
-     * @param string|array<string> $responseTypes
-     * @return void
-     */
-    public function setResponseTypes($responseTypes)
-    {
-        $this->responseTypes = array_merge($this->responseTypes, (array)$responseTypes);
-    }
-
-    /**
      * @return bool
      * @throws OpenIDConnectClientException
      * @throws JsonException
@@ -1000,17 +973,6 @@ class OpenIDConnectClient
     }
 
     /**
-     * Used for arbitrary value generation for nonces and state
-     *
-     * @return string
-     * @throws \Exception
-     */
-    protected function generateRandString(): string
-    {
-        return base64url_encode(\random_bytes(16));
-    }
-
-    /**
      * Start Here
      * @return void
      * @throws OpenIDConnectClientException
@@ -1172,77 +1134,6 @@ class OpenIDConnectClient
         $tokenEndpoint = $this->getProviderConfigValue('token_endpoint');
         $this->tokenResponse = Json::decode($this->fetchURL($tokenEndpoint, $tokenParams)->data);
         return $this->tokenResponse;
-    }
-
-    /**
-     * @param array<string, mixed> $params
-     * @param string $endpointName
-     * @return CurlResponse
-     * @throws JsonException
-     * @throws OpenIDConnectClientException
-     * @throws \Exception
-     */
-    protected function endpointRequestRaw(array $params, string $endpointName): CurlResponse
-    {
-        if (!in_array($endpointName, ['token', 'introspection', 'pushed_authorization_request', 'revocation'], true)) {
-            throw new \InvalidArgumentException("Invalid endpoint name provided");
-        }
-
-        $endpoint = $this->getProviderConfigValue("{$endpointName}_endpoint");
-
-        /*
-         * Pushed Authorization Request endpoint uses the same auth methods as token endpoint.
-         *
-         * From RFC: Similarly, the token_endpoint_auth_methods_supported authorization server metadata parameter lists
-         * client authentication methods supported by the authorization server when accepting direct requests from clients,
-         * including requests to the PAR endpoint.
-         */
-        if ($endpointName === 'pushed_authorization_request') {
-            $endpointName = 'token';
-        }
-        $authMethodsSupported = $this->getProviderConfigValue("{$endpointName}_endpoint_auth_methods_supported", ['client_secret_basic']);
-
-        if ($this->authenticationMethod && !in_array($this->authenticationMethod, $authMethodsSupported)) {
-            $supportedMethods = implode(", ", $authMethodsSupported);
-            throw new OpenIDConnectClientException("Token authentication method $this->authenticationMethod is not supported by IdP. Supported methods are: $supportedMethods");
-        }
-
-        $headers = ['Accept: application/json'];
-
-        // See https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication
-        if ($this->authenticationMethod === 'client_secret_jwt') {
-            $time = time();
-            $jwt = $this->createHmacSignedJwt([
-                'iss' => $this->clientID,
-                'sub' => $this->clientID,
-                'aud' => $this->getProviderConfigValue("token_endpoint"), // audience should be all the time token_endpoint
-                'jti' => $this->generateRandString(),
-                'exp' => $time + $this->timeOut,
-                'iat' => $time,
-            ], 'HS256', $this->clientSecret);
-
-            $params['client_assertion_type'] = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
-            $params['client_assertion'] = $jwt;
-        } elseif (in_array('client_secret_basic', $authMethodsSupported, true) && $this->authenticationMethod !== 'client_secret_post') {
-            $headers = ['Authorization: Basic ' . base64_encode(urlencode($this->clientID) . ':' . urlencode($this->clientSecret))];
-        } else { // client_secret_post fallback
-            $params['client_id'] = $this->clientID;
-            $params['client_secret'] = $this->clientSecret;
-        }
-        return $this->fetchURL($endpoint, $params, $headers);
-    }
-
-    /**
-     * @param array<string, mixed> $params
-     * @param string $endpointName
-     * @return \stdClass
-     * @throws JsonException
-     * @throws OpenIDConnectClientException
-     */
-    protected function endpointRequest(array $params, string $endpointName = 'token'): \stdClass
-    {
-        $response = $this->endpointRequestRaw($params, $endpointName);
-        return Json::decode($response->data);
     }
 
     /**
@@ -1703,284 +1594,6 @@ class OpenIDConnectClient
     }
 
     /**
-     * @param string $url
-     * @param string|array|null $postBody string If this is set the post type will be POST
-     * @param array<string> $headers Extra headers to be send with the request. Format as 'NameHeader: ValueHeader'
-     * @return CurlResponse
-     * @throws OpenIDConnectClientException
-     */
-    protected function fetchURL(string $url, $postBody = null, array $headers = []): CurlResponse
-    {
-        if (!$this->ch) {
-            // Share handle between requests to allow keep connection alive between requests
-            $this->ch = curl_init();
-            if (!$this->ch) {
-                throw new \RuntimeException("Could not initialize curl");
-            }
-        } else {
-            // Reset options, so we can do another request
-            curl_reset($this->ch);
-        }
-
-        // Determine whether this is a GET or POST
-        if ($postBody !== null) {
-            // Default content type is form encoded
-            $contentType = 'application/x-www-form-urlencoded';
-
-            // Determine if this is a JSON payload and add the appropriate content type
-            if (is_array($postBody)) {
-                $postBody = http_build_query($postBody, '', '&', $this->enc_type);
-            } elseif (is_string($postBody) && is_object(json_decode($postBody))) {
-                $contentType = 'application/json';
-            } else {
-                throw new \InvalidArgumentException("Invalid type for postBody, expected array, string or null value");
-            }
-
-            // curl_setopt($this->ch, CURLOPT_POST, 1);
-            // Allows to keep the POST method even after redirect
-            curl_setopt($this->ch, CURLOPT_CUSTOMREQUEST, 'POST');
-            curl_setopt($this->ch, CURLOPT_POSTFIELDS, $postBody);
-
-            // Add POST-specific headers
-            $headers[] = "Content-Type: {$contentType}";
-        }
-
-        // If we set some headers include them
-        if (!empty($headers)) {
-            curl_setopt($this->ch, CURLOPT_HTTPHEADER, $headers);
-        }
-
-        if (isset($this->httpProxy)) {
-            curl_setopt($this->ch, CURLOPT_PROXY, $this->httpProxy);
-        }
-
-        /**
-         * Set cert
-         * Otherwise ignore SSL peer verification
-         */
-        if (isset($this->certPath)) {
-            curl_setopt($this->ch, CURLOPT_CAINFO, $this->certPath);
-        }
-
-        curl_setopt_array($this->ch, [
-            CURLOPT_URL => $url, // Set URL to download
-            CURLOPT_FOLLOWLOCATION => true, // Allows to follow redirect
-            CURLOPT_SSL_VERIFYPEER => $this->verifyPeer,
-            CURLOPT_SSL_VERIFYHOST => $this->verifyHost ? 2 : 0,
-            CURLOPT_RETURNTRANSFER => true, // Should cURL return or print out the data? (true = return, false = print)
-            CURLOPT_HEADER => false, CURLOPT_HEADER, // Include header in result?
-            CURLOPT_TIMEOUT => $this->timeOut, // Timeout in seconds
-        ]);
-
-        // Download the given URL, and return output
-        $output = curl_exec($this->ch);
-
-        if ($output === false) {
-            throw new OpenIDConnectClientException('Curl error: (' . curl_errno($this->ch) . ') ' . curl_error($this->ch));
-        }
-
-        $info = curl_getinfo($this->ch);
-
-        return new CurlResponse($output, $info['http_code'], $info['content_type']);
-    }
-
-    /**
-     *
-     * @param string $url
-     * @param string|array|null $postBody
-     * @param array<string> $headers
-     * @return \stdClass
-     * @throws JsonException
-     * @throws OpenIDConnectClientException
-     */
-    protected function fetchJsonOrJwk(string $url, $postBody = null, array $headers = []): \stdClass
-    {
-        $response = $this->fetchURL($url, $postBody, $headers);
-        if (!$response->isSuccess()) {
-            throw new OpenIDConnectClientException("Could not fetch $url, error code $response->responseCode");
-        }
-        if ($response->contentType === 'application/jwt') {
-            if (!$this->verifyJwtSignature($response->data)) {
-                throw new OpenIDConnectClientException('Unable to verify signature');
-            }
-            return (new Jwt($response->data))->payload();
-        }
-        return Json::decode($response->data);
-    }
-
-    /**
-     * @param bool $appendSlash
-     * @return string
-     * @throws OpenIDConnectClientException
-     * @throws JsonException
-     */
-    public function getWellKnownIssuer(bool $appendSlash = false): string
-    {
-        return $this->getWellKnownConfigValue('issuer') . ($appendSlash ? '/' : '');
-    }
-
-    /**
-     * @return string
-     * @throws OpenIDConnectClientException
-     */
-    public function getIssuer(): string
-    {
-        if (!isset($this->providerConfig['issuer'])) {
-            throw new OpenIDConnectClientException('The issuer has not been set');
-        }
-        return $this->providerConfig['issuer'];
-    }
-
-    /**
-     * @return string
-     * @throws OpenIDConnectClientException
-     */
-    public function getProviderURL(): string
-    {
-        if (!isset($this->providerConfig['providerUrl'])) {
-            throw new OpenIDConnectClientException('The provider URL has not been set');
-        }
-        return $this->providerConfig['providerUrl'];
-    }
-
-    /**
-     * @param string|null $httpProxy
-     * @return void
-     */
-    public function setHttpProxy($httpProxy)
-    {
-        $this->httpProxy = $httpProxy;
-    }
-
-    /**
-     * @param string $certPath
-     * @return void
-     */
-    public function setCertPath(string $certPath)
-    {
-        $this->certPath = $certPath;
-    }
-
-    /**
-     * @return string|null
-     */
-    public function getCertPath()
-    {
-        return $this->certPath;
-    }
-
-    /**
-     * @param bool $verifyPeer
-     * @return void
-     */
-    public function setVerifyPeer(bool $verifyPeer)
-    {
-        $this->verifyPeer = $verifyPeer;
-    }
-
-    /**
-     * @param bool $verifyHost
-     * @return void
-     */
-    public function setVerifyHost(bool $verifyHost)
-    {
-        $this->verifyHost = $verifyHost;
-    }
-
-    /**
-     * Controls whether http header HTTP_UPGRADE_INSECURE_REQUESTS should be considered
-     * defaults to true
-     * @param bool $httpUpgradeInsecureRequests
-     * @return void
-     */
-    public function setHttpUpgradeInsecureRequests(bool $httpUpgradeInsecureRequests)
-    {
-        $this->httpUpgradeInsecureRequests = $httpUpgradeInsecureRequests;
-    }
-
-    /**
-     * @return bool
-     */
-    public function getVerifyHost(): bool
-    {
-        return $this->verifyHost;
-    }
-
-    /**
-     * @return bool
-     */
-    public function getVerifyPeer(): bool
-    {
-        return $this->verifyPeer;
-    }
-
-    /**
-     * @return bool
-     */
-    public function getHttpUpgradeInsecureRequests(): bool
-    {
-        return $this->httpUpgradeInsecureRequests;
-    }
-
-    /**
-     * Use this for custom issuer validation
-     * The given function should accept the issuer string from the JWT claim as the only argument
-     * and return true if the issuer is valid, otherwise return false
-     *
-     * @param \Closure $issuerValidator
-     */
-    public function setIssuerValidator(\Closure $issuerValidator)
-    {
-        $this->issuerValidator = $issuerValidator;
-    }
-
-    /**
-     * @param bool $allowImplicitFlow
-     * @return void
-     */
-    public function setAllowImplicitFlow(bool $allowImplicitFlow)
-    {
-        $this->allowImplicitFlow = $allowImplicitFlow;
-    }
-
-    /**
-     * @return bool
-     */
-    public function getAllowImplicitFlow(): bool
-    {
-        return $this->allowImplicitFlow;
-    }
-
-    /**
-     * Use this to alter a provider's endpoints and other attributes
-     *
-     * @param array<string, mixed> $array
-     *        simple key => value
-     */
-    public function providerConfigParam(array $array)
-    {
-        $this->providerConfig = array_merge($this->providerConfig, $array);
-    }
-
-    /**
-     * @param string $clientSecret
-     * @return void
-     */
-    public function setClientSecret(string $clientSecret)
-    {
-        $this->clientSecret = $clientSecret;
-    }
-
-    /**
-     * @param string $clientID
-     * @return void
-     */
-    public function setClientID(string $clientID)
-    {
-        $this->clientID = $clientID;
-    }
-
-    /**
      * Dynamic registration
      *
      * @throws OpenIDConnectClientException
@@ -2163,63 +1776,202 @@ class OpenIDConnectClient
     }
 
     /**
-     * Use session to manage a nonce
+     * @param bool $appendSlash
+     * @return string
+     * @throws OpenIDConnectClientException
+     * @throws JsonException
      */
-    protected function startSession()
+    public function getWellKnownIssuer(bool $appendSlash = false): string
     {
-        if (!isset($_SESSION)) {
-            if (!session_start()) {
-                throw new \RuntimeException("Could not start session");
-            }
-        }
+        return $this->getWellKnownConfigValue('issuer') . ($appendSlash ? '/' : '');
     }
 
     /**
+     * @return string
+     * @throws OpenIDConnectClientException
+     */
+    public function getIssuer(): string
+    {
+        if (!isset($this->providerConfig['issuer'])) {
+            throw new OpenIDConnectClientException('The issuer has not been set');
+        }
+        return $this->providerConfig['issuer'];
+    }
+
+    /**
+     * @return string
+     * @throws OpenIDConnectClientException
+     */
+    public function getProviderURL(): string
+    {
+        if (!isset($this->providerConfig['providerUrl'])) {
+            throw new OpenIDConnectClientException('The provider URL has not been set');
+        }
+        return $this->providerConfig['providerUrl'];
+    }
+
+    /**
+     * @param string|null $httpProxy
      * @return void
      */
-    protected function commitSession()
+    public function setHttpProxy($httpProxy)
     {
-        if (session_write_close() === false) {
-            throw new \RuntimeException("Could not write session");
-        }
+        $this->httpProxy = $httpProxy;
     }
 
     /**
-     * Fetch given key from sessions. If session key doesn't exists, returns `null`
-     * @param string $key
+     * @param string $certPath
+     * @return void
+     */
+    public function setCertPath(string $certPath)
+    {
+        $this->certPath = $certPath;
+    }
+
+    /**
      * @return string|null
      */
-    protected function getSessionKey(string $key)
+    public function getCertPath()
     {
-        $this->startSession();
-
-        if (array_key_exists($key, $_SESSION)) {
-            return $_SESSION[$key];
-        }
-        return null;
+        return $this->certPath;
     }
 
     /**
-     * @param string $key
-     * @param string $value
+     * @param bool $verifyPeer
      * @return void
      */
-    protected function setSessionKey(string $key, string $value)
+    public function setVerifyPeer(bool $verifyPeer)
     {
-        $this->startSession();
-
-        $_SESSION[$key] = $value;
+        $this->verifyPeer = $verifyPeer;
     }
 
     /**
-     * @param string $key
+     * @param bool $verifyHost
      * @return void
      */
-    protected function unsetSessionKey(string $key)
+    public function setVerifyHost(bool $verifyHost)
     {
-        $this->startSession();
+        $this->verifyHost = $verifyHost;
+    }
 
-        unset($_SESSION[$key]);
+    /**
+     * Controls whether http header HTTP_UPGRADE_INSECURE_REQUESTS should be considered
+     * defaults to true
+     * @param bool $httpUpgradeInsecureRequests
+     * @return void
+     */
+    public function setHttpUpgradeInsecureRequests(bool $httpUpgradeInsecureRequests)
+    {
+        $this->httpUpgradeInsecureRequests = $httpUpgradeInsecureRequests;
+    }
+
+    /**
+     * @return bool
+     */
+    public function getVerifyHost(): bool
+    {
+        return $this->verifyHost;
+    }
+
+    /**
+     * @return bool
+     */
+    public function getVerifyPeer(): bool
+    {
+        return $this->verifyPeer;
+    }
+
+    /**
+     * @return bool
+     */
+    public function getHttpUpgradeInsecureRequests(): bool
+    {
+        return $this->httpUpgradeInsecureRequests;
+    }
+
+    /**
+     * Use this for custom issuer validation
+     * The given function should accept the issuer string from the JWT claim as the only argument
+     * and return true if the issuer is valid, otherwise return false
+     *
+     * @param \Closure $issuerValidator
+     */
+    public function setIssuerValidator(\Closure $issuerValidator)
+    {
+        $this->issuerValidator = $issuerValidator;
+    }
+
+    /**
+     * @param bool $allowImplicitFlow
+     * @return void
+     */
+    public function setAllowImplicitFlow(bool $allowImplicitFlow)
+    {
+        $this->allowImplicitFlow = $allowImplicitFlow;
+    }
+
+    /**
+     * @return bool
+     */
+    public function getAllowImplicitFlow(): bool
+    {
+        return $this->allowImplicitFlow;
+    }
+
+    /**
+     * Use this to alter a provider's endpoints and other attributes
+     *
+     * @param array<string, mixed> $array
+     *        simple key => value
+     */
+    public function providerConfigParam(array $array)
+    {
+        $this->providerConfig = array_merge($this->providerConfig, $array);
+    }
+
+    /**
+     * @param string $clientSecret
+     * @return void
+     */
+    public function setClientSecret(string $clientSecret)
+    {
+        $this->clientSecret = $clientSecret;
+    }
+
+    /**
+     * @param string $clientID
+     * @return void
+     */
+    public function setClientID(string $clientID)
+    {
+        $this->clientID = $clientID;
+    }
+
+    /**
+     * @param string $providerUrl
+     * @return void
+     */
+    public function setProviderURL(string $providerUrl)
+    {
+        $this->providerConfig['providerUrl'] = $providerUrl;
+    }
+
+    /**
+     * @param string $issuer
+     * @return void
+     */
+    public function setIssuer(string $issuer)
+    {
+        $this->providerConfig['issuer'] = $issuer;
+    }
+
+    /**
+     * @param string|array<string> $responseTypes
+     * @return void
+     */
+    public function setResponseTypes($responseTypes)
+    {
+        $this->responseTypes = array_merge($this->responseTypes, (array)$responseTypes);
     }
 
     /**
@@ -2301,6 +2053,251 @@ class OpenIDConnectClient
         }
 
         $this->authenticationMethod = $authenticationMethod;
+    }
+
+    /**
+     * Use session to manage a nonce
+     */
+    protected function startSession()
+    {
+        if (!isset($_SESSION)) {
+            if (!session_start()) {
+                throw new \RuntimeException("Could not start session");
+            }
+        }
+    }
+
+    /**
+     * @return void
+     */
+    protected function commitSession()
+    {
+        if (session_write_close() === false) {
+            throw new \RuntimeException("Could not write session");
+        }
+    }
+
+    /**
+     * Fetch given key from sessions. If session key doesn't exists, returns `null`
+     * @param string $key
+     * @return string|null
+     */
+    protected function getSessionKey(string $key)
+    {
+        $this->startSession();
+
+        if (array_key_exists($key, $_SESSION)) {
+            return $_SESSION[$key];
+        }
+        return null;
+    }
+
+    /**
+     * @param string $key
+     * @param string $value
+     * @return void
+     */
+    protected function setSessionKey(string $key, string $value)
+    {
+        $this->startSession();
+        $_SESSION[$key] = $value;
+    }
+
+    /**
+     * @param string $key
+     * @return void
+     */
+    protected function unsetSessionKey(string $key)
+    {
+        $this->startSession();
+        unset($_SESSION[$key]);
+    }
+
+    /**
+     * @param string $url
+     * @param string|array|null $postBody string If this is set the post type will be POST
+     * @param array<string> $headers Extra headers to be send with the request. Format as 'NameHeader: ValueHeader'
+     * @return CurlResponse
+     * @throws OpenIDConnectClientException
+     */
+    protected function fetchURL(string $url, $postBody = null, array $headers = []): CurlResponse
+    {
+        if (!$this->ch) {
+            // Share handle between requests to allow keep connection alive between requests
+            $this->ch = curl_init();
+            if (!$this->ch) {
+                throw new \RuntimeException("Could not initialize curl");
+            }
+        } else {
+            // Reset options, so we can do another request
+            curl_reset($this->ch);
+        }
+
+        // Determine whether this is a GET or POST
+        if ($postBody !== null) {
+            // Default content type is form encoded
+            $contentType = 'application/x-www-form-urlencoded';
+
+            // Determine if this is a JSON payload and add the appropriate content type
+            if (is_array($postBody)) {
+                $postBody = http_build_query($postBody, '', '&', $this->enc_type);
+            } elseif (is_string($postBody) && is_object(json_decode($postBody))) {
+                $contentType = 'application/json';
+            } else {
+                throw new \InvalidArgumentException("Invalid type for postBody, expected array, string or null value");
+            }
+
+            // curl_setopt($this->ch, CURLOPT_POST, 1);
+            // Allows to keep the POST method even after redirect
+            curl_setopt($this->ch, CURLOPT_CUSTOMREQUEST, 'POST');
+            curl_setopt($this->ch, CURLOPT_POSTFIELDS, $postBody);
+
+            // Add POST-specific headers
+            $headers[] = "Content-Type: {$contentType}";
+        }
+
+        // If we set some headers include them
+        if (!empty($headers)) {
+            curl_setopt($this->ch, CURLOPT_HTTPHEADER, $headers);
+        }
+
+        if (isset($this->httpProxy)) {
+            curl_setopt($this->ch, CURLOPT_PROXY, $this->httpProxy);
+        }
+
+        /**
+         * Set cert
+         * Otherwise ignore SSL peer verification
+         */
+        if (isset($this->certPath)) {
+            curl_setopt($this->ch, CURLOPT_CAINFO, $this->certPath);
+        }
+
+        curl_setopt_array($this->ch, [
+            CURLOPT_URL => $url, // Set URL to download
+            CURLOPT_FOLLOWLOCATION => true, // Allows to follow redirect
+            CURLOPT_SSL_VERIFYPEER => $this->verifyPeer,
+            CURLOPT_SSL_VERIFYHOST => $this->verifyHost ? 2 : 0,
+            CURLOPT_RETURNTRANSFER => true, // Should cURL return or print out the data? (true = return, false = print)
+            CURLOPT_HEADER => false, CURLOPT_HEADER, // Include header in result?
+            CURLOPT_TIMEOUT => $this->timeOut, // Timeout in seconds
+        ]);
+
+        // Download the given URL, and return output
+        $output = curl_exec($this->ch);
+
+        if ($output === false) {
+            throw new OpenIDConnectClientException('Curl error: (' . curl_errno($this->ch) . ') ' . curl_error($this->ch));
+        }
+
+        $info = curl_getinfo($this->ch);
+
+        return new CurlResponse($output, $info['http_code'], $info['content_type']);
+    }
+
+    /**
+     * @param string $url
+     * @param string|array|null $postBody
+     * @param array<string> $headers
+     * @return \stdClass
+     * @throws JsonException
+     * @throws OpenIDConnectClientException
+     */
+    protected function fetchJsonOrJwk(string $url, $postBody = null, array $headers = []): \stdClass
+    {
+        $response = $this->fetchURL($url, $postBody, $headers);
+        if (!$response->isSuccess()) {
+            throw new OpenIDConnectClientException("Could not fetch $url, error code $response->responseCode");
+        }
+        if ($response->contentType === 'application/jwt') {
+            if (!$this->verifyJwtSignature($response->data)) {
+                throw new OpenIDConnectClientException('Unable to verify signature');
+            }
+            return (new Jwt($response->data))->payload();
+        }
+        return Json::decode($response->data);
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     * @param string $endpointName
+     * @return CurlResponse
+     * @throws JsonException
+     * @throws OpenIDConnectClientException
+     * @throws \Exception
+     */
+    protected function endpointRequestRaw(array $params, string $endpointName): CurlResponse
+    {
+        if (!in_array($endpointName, ['token', 'introspection', 'pushed_authorization_request', 'revocation'], true)) {
+            throw new \InvalidArgumentException("Invalid endpoint name provided");
+        }
+
+        $endpoint = $this->getProviderConfigValue("{$endpointName}_endpoint");
+
+        /*
+         * Pushed Authorization Request endpoint uses the same auth methods as token endpoint.
+         *
+         * From RFC: Similarly, the token_endpoint_auth_methods_supported authorization server metadata parameter lists
+         * client authentication methods supported by the authorization server when accepting direct requests from clients,
+         * including requests to the PAR endpoint.
+         */
+        if ($endpointName === 'pushed_authorization_request') {
+            $endpointName = 'token';
+        }
+        $authMethodsSupported = $this->getProviderConfigValue("{$endpointName}_endpoint_auth_methods_supported", ['client_secret_basic']);
+
+        if ($this->authenticationMethod && !in_array($this->authenticationMethod, $authMethodsSupported)) {
+            $supportedMethods = implode(", ", $authMethodsSupported);
+            throw new OpenIDConnectClientException("Token authentication method $this->authenticationMethod is not supported by IdP. Supported methods are: $supportedMethods");
+        }
+
+        $headers = ['Accept: application/json'];
+
+        // See https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication
+        if ($this->authenticationMethod === 'client_secret_jwt') {
+            $time = time();
+            $jwt = $this->createHmacSignedJwt([
+                'iss' => $this->clientID,
+                'sub' => $this->clientID,
+                'aud' => $this->getProviderConfigValue("token_endpoint"), // audience should be all the time token_endpoint
+                'jti' => $this->generateRandString(),
+                'exp' => $time + $this->timeOut,
+                'iat' => $time,
+            ], 'HS256', $this->clientSecret);
+
+            $params['client_assertion_type'] = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
+            $params['client_assertion'] = $jwt;
+        } elseif (in_array('client_secret_basic', $authMethodsSupported, true) && $this->authenticationMethod !== 'client_secret_post') {
+            $headers = ['Authorization: Basic ' . base64_encode(urlencode($this->clientID) . ':' . urlencode($this->clientSecret))];
+        } else { // client_secret_post fallback
+            $params['client_id'] = $this->clientID;
+            $params['client_secret'] = $this->clientSecret;
+        }
+        return $this->fetchURL($endpoint, $params, $headers);
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     * @param string $endpointName
+     * @return \stdClass
+     * @throws JsonException
+     * @throws OpenIDConnectClientException
+     */
+    protected function endpointRequest(array $params, string $endpointName = 'token'): \stdClass
+    {
+        $response = $this->endpointRequestRaw($params, $endpointName);
+        return Json::decode($response->data);
+    }
+
+    /**
+     * Used for arbitrary value generation for nonces and state
+     *
+     * @return string
+     * @throws \Exception
+     */
+    protected function generateRandString(): string
+    {
+        return base64url_encode(\random_bytes(16));
     }
 
     /**
