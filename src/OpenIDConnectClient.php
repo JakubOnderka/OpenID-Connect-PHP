@@ -1844,17 +1844,6 @@ class OpenIDConnectClient
     }
 
     /**
-     * Redirect to given URL and exit
-     * @param string $url
-     * @return void
-     */
-    public function redirect(string $url)
-    {
-        header('Location: ' . $url);
-        exit;
-    }
-
-    /**
      * @param string|null $httpProxy
      * @return void
      */
@@ -2312,6 +2301,17 @@ class OpenIDConnectClient
         }
 
         $this->authenticationMethod = $authenticationMethod;
+    }
+
+    /**
+     * Redirect to given URL and exit
+     * @param string $url
+     * @return void
+     */
+    protected function redirect(string $url)
+    {
+        header('Location: ' . $url);
+        exit;
     }
 
     /**
