@@ -337,6 +337,12 @@ class Jwt
     /** @var string */
     private $token;
 
+    /**
+     * Holds parsed payload
+     * @var \stdClass
+     */
+    private $payloadCache;
+
     public function __construct(string $token)
     {
         $this->token = $token;
@@ -362,6 +368,10 @@ class Jwt
      */
     public function payload(): \stdClass
     {
+        if ($this->payloadCache) {
+            return $this->payloadCache;
+        }
+
         $start = strpos($this->token, '.') + 1;
         if ($start === false) {
             throw new \Exception("Token is not in valid format, first `.` separator not found");
@@ -370,7 +380,8 @@ class Jwt
         if ($end === false) {
             throw new \Exception("Token is not in valid format, second `.` separator not found");
         }
-        return Json::decode(base64url_decode(substr($this->token, $start, $end - $start)));
+        $this->payloadCache = Json::decode(base64url_decode(substr($this->token, $start, $end - $start)));
+        return $this->payloadCache;
     }
 
     /**
@@ -517,11 +528,6 @@ class OpenIDConnectClient
      * @var array<\stdClass> holds response types
      */
     private $additionalJwks = [];
-
-    /**
-     * @var \stdClass holds verified jwt claims from ID token
-     */
-    protected $verifiedClaims;
 
     /**
      * @var \Closure validator function for issuer claim
@@ -680,16 +686,15 @@ class OpenIDConnectClient
 
             // Save the id token
             $this->idToken = new Jwt($tokenJson->id_token);
-            $claims = $this->idToken->payload();
 
             // Save the access token
             $this->accessToken = new Jwt($tokenJson->access_token);
 
             // If this is a valid claim
             try {
-                $this->validateIdToken($claims, $tokenJson->access_token);
+                $this->validateIdToken($this->idToken, $tokenJson->access_token);
             } catch (TokenValidationFailed $e) {
-                throw new OpenIDConnectClientException('Unable to verify JWT claims', 0, $e);
+                throw new OpenIDConnectClientException('Unable to validate ID token claims', 0, $e);
             } finally {
                 // Remove nonce from session to avoid replay attacks
                 $this->unsetSessionKey(self::NONCE);
@@ -697,9 +702,6 @@ class OpenIDConnectClient
 
             // Save the full response
             $this->tokenResponse = $tokenJson;
-
-            // Save the verified claims
-            $this->verifiedClaims = $claims;
 
             // Save the refresh token, if we got one
             if (isset($tokenJson->refresh_token)) {
@@ -734,20 +736,16 @@ class OpenIDConnectClient
 
             // Save the id token
             $this->idToken = new Jwt($id_token);
-            $claims = $this->idToken->payload();
 
             // If this is a valid claim
             try {
-                $this->validateIdToken($claims, $accessToken);
+                $this->validateIdToken($this->idToken, $accessToken);
             } catch (TokenValidationFailed $e) {
-                throw new OpenIDConnectClientException('Unable to verify JWT claims', 0, $e);
+                throw new OpenIDConnectClientException('Unable to validate ID token claims', 0, $e);
             } finally {
                 // Remove nonce from session to avoid replay attacks
                 $this->unsetSessionKey(self::NONCE);
             }
-
-            // Save the verified claims
-            $this->verifiedClaims = $claims;
 
             // Save the access token
             if ($accessToken) {
@@ -1455,15 +1453,17 @@ class OpenIDConnectClient
      * Validate ID token and access token if provided.
      *
      * @see https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
-     * @param \stdClass $claims
+     * @param Jwt $jwt
      * @param string|null $accessToken
      * @return void
      * @throws OpenIDConnectClientException
      * @throws JsonException
      * @throws TokenValidationFailed
      */
-    protected function validateIdToken(\stdClass $claims, string $accessToken = null)
+    protected function validateIdToken(Jwt $jwt, string $accessToken = null)
     {
+        $claims = $jwt->payload();
+
         // (2). The Client MUST validate that the aud (audience) Claim contains its client_id value registered at the Issuer identified by the iss (issuer) Claim as an audience.
         if (!isset($claims->iss)) {
             throw new TokenValidationFailed("Required `iss` claim not provided");
@@ -1670,7 +1670,8 @@ class OpenIDConnectClient
     }
 
     /**
-     * @param string|null $attribute
+     * Get verified claims from ID token.
+     * @param string|null $attribute If no attribute provided, all claims will be returned
      *
      * Attribute        Type    Description
      * exp              int     Expires at
@@ -1684,16 +1685,18 @@ class OpenIDConnectClient
      * auth_time        int     Authentication time
      * oid              string  Object id
      *
-     * @return mixed|null
+     * @return mixed|null Returns null if provided attribute doesn't exists
+     * @throws JsonException
      */
     public function getVerifiedClaims(string $attribute = null)
     {
+        $idTokenClaims = $this->idToken->payload();
         if ($attribute === null) {
-            return $this->verifiedClaims;
+            return $idTokenClaims;
         }
 
-        if (property_exists($this->verifiedClaims, $attribute)) {
-            return $this->verifiedClaims->$attribute;
+        if (property_exists($idTokenClaims, $attribute)) {
+            return $idTokenClaims->$attribute;
         }
 
         return null;
