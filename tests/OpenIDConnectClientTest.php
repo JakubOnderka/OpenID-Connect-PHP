@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 use JakubOnderka\CurlResponse;
 use JakubOnderka\OpenIDConnectClient;
-use JakubOnderka\OpenIDConnectClientException;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 

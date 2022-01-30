@@ -90,6 +90,56 @@ class JsonException extends \Exception
 {
 }
 
+class Json
+{
+    /**
+     * @param string $json
+     * @return \stdClass
+     * @throws JsonException
+     */
+    public static function decode(string $json): \stdClass
+    {
+        if (defined('JSON_THROW_ON_ERROR')) {
+            try {
+                $decoded = json_decode($json, false, 512, JSON_THROW_ON_ERROR);
+            } catch (\JsonException $e) {
+                throw new JsonException("Could not decode provided JSON", 0, $e);
+            }
+        } else {
+            $decoded = json_decode($json);
+            if ($decoded === null) {
+                throw new JsonException("Could not decode provided JSON: " . json_last_error_msg());
+            }
+        }
+        if (!$decoded instanceof \stdClass) {
+            throw new JsonException("Decoded JSON must be object, " . gettype($decoded) . " type received.");
+        }
+        return $decoded;
+    }
+
+    /**
+     * @param mixed $value
+     * @return string
+     * @throws JsonException
+     */
+    public static function encode($value): string
+    {
+        if (defined('JSON_THROW_ON_ERROR')) {
+            try {
+                return json_encode($value, JSON_THROW_ON_ERROR);
+            } catch (\JsonException $e) {
+                throw new JsonException("Could not encode provided value", 0, $e);
+            }
+        }
+
+        $encoded = json_encode($value);
+        if ($encoded === false) {
+            throw new JsonException("Could not encode provided value: " . json_last_error_msg());
+        }
+        return $encoded;
+    }
+}
+
 /**
  * OpenIDConnect Exception Class
  */
@@ -762,7 +812,7 @@ class OpenIDConnectClient
         if (!$response->isSuccess()) {
             throw new OpenIDConnectClientException("Invalid response code $response->responseCode when fetching wellKnow, expected 200");
         }
-        $wellKnown = $this->jsonDecode($response->data);
+        $wellKnown = Json::decode($response->data);
 
         if ($this->wellknownCacheExpiration && function_exists('apcu_store')) {
             apcu_store(self::WELLKNOWN_CACHE . md5($wellKnownConfigUrl), $wellKnown, $this->wellknownCacheExpiration);
@@ -1025,7 +1075,7 @@ class OpenIDConnectClient
         }
 
         $token_endpoint = $this->getProviderConfigValue('token_endpoint');
-        return $this->jsonDecode($this->fetchURL($token_endpoint, $postData)->data);
+        return Json::decode($this->fetchURL($token_endpoint, $postData)->data);
     }
 
     /**
@@ -1061,7 +1111,7 @@ class OpenIDConnectClient
         ]);
 
         $tokenEndpoint = $this->getProviderConfigValue('token_endpoint');
-        $this->tokenResponse = $this->jsonDecode($this->fetchURL($tokenEndpoint, $tokenParams)->data);
+        $this->tokenResponse = Json::decode($this->fetchURL($tokenEndpoint, $tokenParams)->data);
         return $this->tokenResponse;
     }
 
@@ -1106,7 +1156,7 @@ class OpenIDConnectClient
             $params['client_secret'] = $this->clientSecret;
         }
 
-        return $this->jsonDecode($this->fetchURL($endpoint ?: $tokenEndpoint, $params, $headers)->data);
+        return Json::decode($this->fetchURL($endpoint ?: $tokenEndpoint, $params, $headers)->data);
     }
 
     /**
@@ -1177,7 +1227,7 @@ class OpenIDConnectClient
             if (!$response->isSuccess()) {
                 throw new \Exception("Invalid response code $response->responseCode.");
             }
-            $jwks = $this->jwks = new Jwks($this->jsonDecode($response->data)->keys);
+            $jwks = $this->jwks = new Jwks(Json::decode($response->data)->keys);
         } catch (\Exception $e) {
             throw new OpenIDConnectClientException('Error fetching JSON from jwks_uri', 0, $e);
         }
@@ -1277,7 +1327,7 @@ class OpenIDConnectClient
         }
 
         try {
-            $header = $this->jsonDecode(base64url_decode($parts[0]));
+            $header = Json::decode(base64url_decode($parts[0]));
         } catch (\Exception $e) {
             throw new OpenIDConnectClientException('Error decoding token header', 0, $e);
         }
@@ -1480,7 +1530,7 @@ class OpenIDConnectClient
         if (!isset($parts[$section])) {
             throw new \RuntimeException("Section $section is not included in JWT token");
         }
-        return $this->jsonDecode(base64url_decode($parts[$section]));
+        return Json::decode(base64url_decode($parts[$section]));
     }
 
     /**
@@ -1679,7 +1729,7 @@ class OpenIDConnectClient
             }
             return $this->decodeJWT($response->data, 1);
         }
-        return $this->jsonDecode($response->data);
+        return Json::decode($response->data);
     }
 
     /**
@@ -1880,10 +1930,10 @@ class OpenIDConnectClient
             'client_name' => $this->getClientName(),
         ));
 
-        $response = $this->fetchURL($registration_endpoint, $this->jsonEncode($send_object));
+        $response = $this->fetchURL($registration_endpoint, Json::encode($send_object));
 
         try {
-            $json_response = $this->jsonDecode($response->data);
+            $json_response = Json::decode($response->data);
         } catch (JsonException $e) {
             throw new OpenIDConnectClientException('Error registering: JSON response received from the server was invalid.', 0, $e);
         }
@@ -2266,53 +2316,6 @@ class OpenIDConnectClient
     }
 
     /**
-     * @param string $json
-     * @return \stdClass
-     * @throws JsonException
-     */
-    private function jsonDecode(string $json): \stdClass
-    {
-        if (defined('JSON_THROW_ON_ERROR')) {
-            try {
-                $decoded = json_decode($json, false, 512, JSON_THROW_ON_ERROR);
-            } catch (\JsonException $e) {
-                throw new JsonException("Could not decode provided JSON", 0, $e);
-            }
-        } else {
-            $decoded = json_decode($json);
-            if ($decoded === null) {
-                throw new JsonException("Could not decode provided JSON: " . json_last_error_msg());
-            }
-        }
-        if (!$decoded instanceof \stdClass) {
-            throw new JsonException("Decoded JSON must be object, " . gettype($decoded) . " type received.");
-        }
-        return $decoded;
-    }
-
-    /**
-     * @param mixed $value
-     * @return string
-     * @throws JsonException
-     */
-    private function jsonEncode($value): string
-    {
-        if (defined('JSON_THROW_ON_ERROR')) {
-            try {
-                return json_encode($value, JSON_THROW_ON_ERROR);
-            } catch (\JsonException $e) {
-                throw new JsonException("Could not encode provided value", 0, $e);
-            }
-        }
-
-        $encoded = json_encode($value);
-        if ($encoded === false) {
-            throw new JsonException("Could not encode provided value: " . json_last_error_msg());
-        }
-        return $encoded;
-    }
-
-    /**
      * @param array<string, mixed> $payload
      * @param string $hashAlg
      * @param string $secret
@@ -2329,8 +2332,8 @@ class OpenIDConnectClient
             'alg' => $hashAlg,
             'typ' => 'JWT',
         ];
-        $header = base64url_encode($this->jsonEncode($header));
-        $payload = base64url_encode($this->jsonEncode($payload));
+        $header = base64url_encode(Json::encode($header));
+        $payload = base64url_encode(Json::encode($payload));
         $hmac = hash_hmac('sha' . substr($hashAlg, 2), "$header.$payload", $secret, true);
         $signature = base64url_encode($hmac);
         return "$header.$payload.$signature";

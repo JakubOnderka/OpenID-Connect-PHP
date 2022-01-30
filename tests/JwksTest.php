@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+use JakubOnderka\Json;
 use JakubOnderka\Jwks;
 use PHPUnit\Framework\TestCase;
 
@@ -12,7 +13,7 @@ class JwksTest extends TestCase
         $header->kid = 'konnectd-tokens-signing-key';
         $header->alg = 'RS256';
 
-        $content = json_decode(file_get_contents(__DIR__ . "/data/jwks-ps256.json"));
+        $content = Json::decode(file_get_contents(__DIR__ . "/data/jwks-ps256.json"));
         $jwks = new Jwks($content->keys);
         $key = $jwks->getKeyForHeader($header);
 

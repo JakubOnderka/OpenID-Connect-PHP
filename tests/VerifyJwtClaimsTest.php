@@ -17,6 +17,8 @@ namespace JakubOnderka {
 }
 
 namespace {
+
+    use JakubOnderka\Json;
     use JakubOnderka\OpenIDConnectClient;
     use JakubOnderka\OpenIDConnectClientException;
     use JakubOnderka\VerifyJwtClaimFailed;
@@ -209,10 +211,13 @@ namespace {
             $this->assertInstanceOf(stdClass::class, $result);
         }
 
+        /**
+         * @throws \JakubOnderka\JsonException
+         */
         private function createToken(array $idTokenData): \stdClass
         {
-            $idToken = base64url_encode(json_encode(['alg' => 'HS256', 'type' => 'JWT']));
-            $idToken .= '.' . base64url_encode(json_encode($idTokenData));
+            $idToken = base64url_encode(Json::encode(['alg' => 'HS256', 'type' => 'JWT']));
+            $idToken .= '.' . base64url_encode(Json::encode($idTokenData));
             $idToken .= '.' . base64url_encode(sha1('', true)); // fake signature, it is not verified in this test
 
             $requestTokens = new \stdClass();
