@@ -579,7 +579,7 @@ class OpenIDConnectClient
     /**
      * @var string|null
      */
-    private $tokenAuthenticationMethod;
+    private $authenticationMethod;
 
     /**
      * @param string|null $providerUrl
@@ -1076,7 +1076,7 @@ class OpenIDConnectClient
             if ($this->clientSecret) {
                 $authParams = ['request' => $this->createHmacSignedJwt($authParams, 'HS256', $this->clientSecret)];
             }
-            $response = $this->tokenEndpointRequest($authParams, $pushedAuthorizationEndpoint);
+            $response = $this->endpointRequest($authParams, 'pushed_authorization_request');
             if (isset($response->request_uri)) {
                 $authParams = [
                     'client_id' => $this->clientID,
@@ -1109,7 +1109,7 @@ class OpenIDConnectClient
             $postData['scope'] = implode(' ', $this->scopes);
         }
 
-        return $this->tokenEndpointRequest($postData);
+        return $this->endpointRequest($postData);
     }
 
     /**
@@ -1132,7 +1132,7 @@ class OpenIDConnectClient
 
         // For client authentication include the client values
         if ($bClientAuth) {
-            return $this->tokenEndpointRequest($postData);
+            return $this->endpointRequest($postData);
         }
 
         $token_endpoint = $this->getProviderConfigValue('token_endpoint');
@@ -1157,7 +1157,7 @@ class OpenIDConnectClient
 
         $ccm = $this->getCodeChallengeMethod();
         if (empty($ccm)) {
-            $this->tokenResponse = $this->tokenEndpointRequest($tokenParams);
+            $this->tokenResponse = $this->endpointRequest($tokenParams);
             return $this->tokenResponse;
         }
 
@@ -1178,31 +1178,46 @@ class OpenIDConnectClient
 
     /**
      * @param array<string, mixed> $params
-     * @param string $endpoint
-     * @return \stdClass
+     * @param string $endpointName
+     * @return CurlResponse
      * @throws JsonException
      * @throws OpenIDConnectClientException
      * @throws \Exception
      */
-    protected function tokenEndpointRequest(array $params, string $endpoint = null): \stdClass
+    protected function endpointRequestRaw(array $params, string $endpointName): CurlResponse
     {
-        $tokenEndpoint = $this->getProviderConfigValue('token_endpoint');
-        $authMethodsSupported = $this->getProviderConfigValue('token_endpoint_auth_methods_supported', ['client_secret_basic']);
-
-        if ($this->tokenAuthenticationMethod && !in_array($this->tokenAuthenticationMethod, $authMethodsSupported)) {
-            $supportedMethods = implode(", ", $authMethodsSupported);
-            throw new OpenIDConnectClientException("Token authentication method $this->tokenAuthenticationMethod is not supported by IdP. Supported methods are: $supportedMethods");
+        if (!in_array($endpointName, ['token', 'introspection', 'pushed_authorization_request', 'revocation'], true)) {
+            throw new \InvalidArgumentException("Invalid endpoint name provided");
         }
 
-        $headers = [];
+        $endpoint = $this->getProviderConfigValue("{$endpointName}_endpoint");
+
+        /*
+         * Pushed Authorization Request endpoint uses the same auth methods as token endpoint.
+         *
+         * From RFC: Similarly, the token_endpoint_auth_methods_supported authorization server metadata parameter lists
+         * client authentication methods supported by the authorization server when accepting direct requests from clients,
+         * including requests to the PAR endpoint.
+         */
+        if ($endpointName === 'pushed_authorization_request') {
+            $endpointName = 'token';
+        }
+        $authMethodsSupported = $this->getProviderConfigValue("{$endpointName}_endpoint_auth_methods_supported", ['client_secret_basic']);
+
+        if ($this->authenticationMethod && !in_array($this->authenticationMethod, $authMethodsSupported)) {
+            $supportedMethods = implode(", ", $authMethodsSupported);
+            throw new OpenIDConnectClientException("Token authentication method $this->authenticationMethod is not supported by IdP. Supported methods are: $supportedMethods");
+        }
+
+        $headers = ['Accept: application/json'];
 
         // See https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication
-        if ($this->tokenAuthenticationMethod === 'client_secret_jwt') {
+        if ($this->authenticationMethod === 'client_secret_jwt') {
             $time = time();
             $jwt = $this->createHmacSignedJwt([
                 'iss' => $this->clientID,
                 'sub' => $this->clientID,
-                'aud' => $tokenEndpoint,
+                'aud' => $this->getProviderConfigValue("token_endpoint"), // audience should be all the time token_endpoint
                 'jti' => $this->generateRandString(),
                 'exp' => $time + $this->timeOut,
                 'iat' => $time,
@@ -1210,14 +1225,26 @@ class OpenIDConnectClient
 
             $params['client_assertion_type'] = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
             $params['client_assertion'] = $jwt;
-        } elseif (in_array('client_secret_basic', $authMethodsSupported, true) && $this->tokenAuthenticationMethod !== 'client_secret_post') {
+        } elseif (in_array('client_secret_basic', $authMethodsSupported, true) && $this->authenticationMethod !== 'client_secret_post') {
             $headers = [$this->basicAuthorizationHeader($this->clientID, $this->clientSecret)];
         } else { // client_secret_post fallback
             $params['client_id'] = $this->clientID;
             $params['client_secret'] = $this->clientSecret;
         }
+        return $this->fetchURL($endpoint, $params, $headers);
+    }
 
-        return Json::decode($this->fetchURL($endpoint ?: $tokenEndpoint, $params, $headers)->data);
+    /**
+     * @param array<string, mixed> $params
+     * @param string $endpointName
+     * @return \stdClass
+     * @throws JsonException
+     * @throws OpenIDConnectClientException
+     */
+    protected function endpointRequest(array $params, string $endpointName = 'token'): \stdClass
+    {
+        $response = $this->endpointRequestRaw($params, $endpointName);
+        return Json::decode($response->data);
     }
 
     /**
@@ -1236,7 +1263,7 @@ class OpenIDConnectClient
             'scope' => implode(' ', $this->scopes),
         ];
 
-        $json = $this->tokenEndpointRequest($tokenParams);
+        $json = $this->endpointRequest($tokenParams);
 
         if (isset($json->access_token)) {
             $this->accessToken = new Jwt($json->access_token);
@@ -2000,66 +2027,51 @@ class OpenIDConnectClient
 
     /**
      * Introspect a given token - either access token or refresh token.
-     * @see https://tools.ietf.org/html/rfc7662
      *
+     * @see https://tools.ietf.org/html/rfc7662
      * @param string $token
-     * @param string $token_type_hint
-     * @param string|null $clientId
-     * @param string|null $clientSecret
-     * @return mixed
+     * @param string $tokenTypeHint
+     * @return \stdClass
      * @throws OpenIDConnectClientException
+     * @throws JsonException
      */
-    public function introspectToken($token, $token_type_hint = '', $clientId = null, $clientSecret = null)
+    public function introspectToken(string $token, string $tokenTypeHint = null): \stdClass
     {
-        $introspection_endpoint = $this->getProviderConfigValue('introspection_endpoint');
-
-        $post_data = array(
-            'token'    => $token,
-        );
-        if ($token_type_hint) {
-            $post_data['token_type_hint'] = $token_type_hint;
+        $params = [
+            'token' => $token,
+        ];
+        if ($tokenTypeHint) {
+            $params['token_type_hint'] = $tokenTypeHint;
         }
-        $clientId = $clientId !== null ? $clientId : $this->clientID;
-        $clientSecret = $clientSecret !== null ? $clientSecret : $this->clientSecret;
 
-        // Convert token params to string format
-        $post_params = http_build_query($post_data, '', '&');
-        $headers = ['Authorization: Basic ' . base64_encode(urlencode($clientId) . ':' . urlencode($clientSecret)),
-            'Accept: application/json'];
-
-        return json_decode($this->fetchURL($introspection_endpoint, $post_params, $headers)->data);
+        return $this->endpointRequest($params, 'introspection');
     }
 
     /**
-     * Revoke a given token - either access token or refresh token.
-     * @see https://tools.ietf.org/html/rfc7009
+     * Revoke a given token - either access token or refresh token. Return true if the token has been revoked
+     * successfully or if the client submitted an invalid token.
      *
+     * @see https://tools.ietf.org/html/rfc7009
      * @param string $token
-     * @param string $token_type_hint
-     * @param string|null $clientId
-     * @param string|null $clientSecret
-     * @return mixed
+     * @param string|null $tokenTypeHint
+     * @return true
      * @throws OpenIDConnectClientException
+     * @throws JsonException
      */
-    public function revokeToken($token, $token_type_hint = '', $clientId = null, $clientSecret = null)
+    public function revokeToken(string $token, string $tokenTypeHint = null): bool
     {
-        $revocation_endpoint = $this->getProviderConfigValue('revocation_endpoint');
-
-        $post_data = array(
-            'token'    => $token,
-        );
-        if ($token_type_hint) {
-            $post_data['token_type_hint'] = $token_type_hint;
+        $params = [
+            'token' => $token,
+        ];
+        if ($tokenTypeHint) {
+            $params['token_type_hint'] = $tokenTypeHint;
         }
-        $clientId = $clientId !== null ? $clientId : $this->clientID;
-        $clientSecret = $clientSecret !== null ? $clientSecret : $this->clientSecret;
 
-        // Convert token params to string format
-        $post_params = http_build_query($post_data, '', '&');
-        $headers = ['Authorization: Basic ' . base64_encode(urlencode($clientId) . ':' . urlencode($clientSecret)),
-            'Accept: application/json'];
-
-        return json_decode($this->fetchURL($revocation_endpoint, $post_params, $headers)->data);
+        $response = $this->endpointRequestRaw($params, 'revocation');
+        if ($response->responseCode === 200) {
+            return true;
+        }
+        throw new OpenIDConnectClientException(Json::decode($response->data));
     }
 
     /**
@@ -2282,20 +2294,20 @@ class OpenIDConnectClient
     }
 
     /**
-     * @param string|null $tokenAuthenticationMethod
+     * @param string|null $authenticationMethod
      * @return void
      */
-    public function setTokenAuthenticationMethod($tokenAuthenticationMethod)
+    public function setAuthenticationMethod($authenticationMethod)
     {
-        if ($tokenAuthenticationMethod === 'private_key_jwt') {
+        if ($authenticationMethod === 'private_key_jwt') {
             throw new \InvalidArgumentException("Authentication method `private_key_jwt` is not supported");
         }
 
-        if ($tokenAuthenticationMethod !== null && !in_array($tokenAuthenticationMethod, ['client_secret_post', 'client_secret_basic', 'client_secret_jwt'])) {
-            throw new \InvalidArgumentException("Unknown authentication method `$tokenAuthenticationMethod` provided.");
+        if ($authenticationMethod !== null && !in_array($authenticationMethod, ['client_secret_post', 'client_secret_basic', 'client_secret_jwt'])) {
+            throw new \InvalidArgumentException("Unknown authentication method `$authenticationMethod` provided.");
         }
 
-        $this->tokenAuthenticationMethod = $tokenAuthenticationMethod;
+        $this->authenticationMethod = $authenticationMethod;
     }
 
     /**

@@ -445,7 +445,7 @@ class OpenIDConnectClientTest extends TestCase
         $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL', 'verifyJWTsignature', 'verifyJWTclaims'])->getMock();
         $client->method('verifyJWTsignature')->willReturn(true);
         $client->method('verifyJWTclaims')->willReturn(true);
-        $client->setTokenAuthenticationMethod('client_secret_jwt');
+        $client->setAuthenticationMethod('client_secret_jwt');
         $client->setClientID('client-id');
         $client->setClientSecret('client-secret');
         $client->providerConfigParam([
@@ -475,7 +475,7 @@ class OpenIDConnectClientTest extends TestCase
         $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL', 'verifyJWTsignature', 'verifyJWTclaims'])->getMock();
         $client->method('verifyJWTsignature')->willReturn(true);
         $client->method('verifyJWTclaims')->willReturn(true);
-        $client->setTokenAuthenticationMethod('client_secret_post');
+        $client->setAuthenticationMethod('client_secret_post');
         $client->setClientID('client-id');
         $client->setClientSecret('client-secret');
         $client->providerConfigParam([
