@@ -779,7 +779,7 @@ class OpenIDConnectClient
 
     /**
      * Add additional JSON Web Key, that will append to keys fetched from remote server
-     * @param \stdClass $jwk - example: (object) array('kid' => ..., 'nbf' => ..., 'use' => 'sig', 'kty' => "RSA", 'e' => "", 'n' => "")
+     * @param \stdClass $jwk - example: (object) ['kid' => ..., 'nbf' => ..., 'use' => 'sig', 'kty' => "RSA", 'e' => "", 'n' => ""]
      */
     protected function addAdditionalJwk(\stdClass $jwk)
     {
@@ -1606,41 +1606,36 @@ class OpenIDConnectClient
     }
 
     /**
-     * Dynamic registration
+     * Dynamic Client Registration
      *
+     * @param string $clientName
+     * @return \stdClass Decoded respone
+     * @see https://openid.net/specs/openid-connect-registration-1_0.html
      * @throws OpenIDConnectClientException
      * @throws JsonException
      */
-    public function register(string $clientName)
+    public function register(string $clientName): \stdClass
     {
-        $registration_endpoint = $this->getProviderConfigValue('registration_endpoint');
+        $registrationEndpoint = $this->getProviderConfigValue('registration_endpoint');
 
-        $send_object = array_merge($this->registrationParams, array(
+        $postBody = array_merge($this->registrationParams, [
             'redirect_uris' => [$this->getRedirectURL()],
             'client_name' => $clientName,
-        ));
+        ]);
 
-        $response = $this->fetchURL($registration_endpoint, Json::encode($send_object));
+        $response = $this->fetchURL($registrationEndpoint, Json::encode($postBody));
 
         try {
-            $json_response = Json::decode($response->data);
+            $decoded = Json::decode($response->data);
         } catch (JsonException $e) {
             throw new OpenIDConnectClientException('Error registering: JSON response received from the server was invalid.', 0, $e);
         }
 
-        if (isset($json_response->error_description)) {
-            throw new OpenIDConnectClientException($json_response->error_description);
+        if (isset($decoded->error_description)) {
+            throw new OpenIDConnectClientException($decoded->error_description);
         }
 
-        $this->setClientID($json_response->client_id);
-
-        // The OpenID Connect Dynamic registration protocol makes the client secret optional
-        // and provides a registration access token and URI endpoint if it is not present
-        if (isset($json_response->client_secret)) {
-            $this->setClientSecret($json_response->client_secret);
-        } else {
-            throw new OpenIDConnectClientException('Error registering: Please contact the OpenID Connect provider and obtain a Client ID and Secret directly from them');
-        }
+        return $decoded;
     }
 
     /**

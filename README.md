@@ -54,9 +54,9 @@ use JakubOnderka\OpenIDConnectClient;
 
 $oidc = new OpenIDConnectClient("https://id.provider.com");
 
-$oidc->register();
-$clientId = $oidc->getClientID();
-$clientSecret = $oidc->getClientSecret();
+$response = $oidc->register("Client Name");
+$clientID = $response->client_id;
+$clientSecret = $response->client_secret;
 
 // Be sure to add logic to store the client id and client secret
 ```
@@ -90,7 +90,7 @@ $clientCredentialsToken = $oidc->requestClientCredentialsToken()->access_token;
 use JakubOnderka\OpenIDConnectClient;
 
 $oidc = new OpenIDConnectClient('https://id.provider.com', 'ClientIDHere','ClientSecretHere');
-$oidc->providerConfigParam(array('token_endpoint'=>'https://id.provider.com/connect/token'));
+$oidc->providerConfigParam(['token_endpoint' => 'https://id.provider.com/connect/token']);
 $oidc->addScope('my_scope');
 
 // Add username and password
@@ -98,7 +98,7 @@ $oidc->addAuthParam(['username' => '<Username>']);
 $oidc->addAuthParam(['password' => '<Password>']);
 
 // Perform the auth and return the token (to validate check if the access_token property is there and a valid JWT) :
-$token = $oidc->requestResourceOwnerToken(TRUE)->access_token;
+$token = $oidc->requestResourceOwnerToken(true)->access_token;
 ```
 
 ## Example 6: Basic client for implicit flow e.g. with Azure AD B2C
@@ -108,13 +108,11 @@ See https://openid.net/specs/openid-connect-core-1_0.html#ImplicitFlowAuth
 ```php
 use JakubOnderka\OpenIDConnectClient;
 
-$oidc = new OpenIDConnectClient('https://id.provider.com',
-                                'ClientIDHere',
-                                'ClientSecretHere');
-$oidc->setResponseTypes(array('id_token'));
-$oidc->addScope(array('openid'));
+$oidc = new OpenIDConnectClient('https://id.provider.com', 'ClientIDHere', 'ClientSecretHere');
+$oidc->setResponseTypes(['id_token']);
+$oidc->addScope(['openid']);
 $oidc->setAllowImplicitFlow(true);
-$oidc->addAuthParam(array('response_mode' => 'form_post'));
+$oidc->addAuthParam(['response_mode' => 'form_post']);
 $oidc->setCertPath('/path/to/my.cert');
 $oidc->authenticate();
 $sub = $oidc->getVerifiedClaims('sub');
@@ -127,9 +125,7 @@ See https://tools.ietf.org/html/rfc7662
 ```php
 use JakubOnderka\OpenIDConnectClient;
 
-$oidc = new OpenIDConnectClient('https://id.provider.com',
-                                'ClientIDHere',
-                                'ClientSecretHere');
+$oidc = new OpenIDConnectClient('https://id.provider.com', 'ClientIDHere', 'ClientSecretHere');
 $data = $oidc->introspectToken('an.access-token.as.given');
 if (!$data->active) {
     // the token is no longer usable

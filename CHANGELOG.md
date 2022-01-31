@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 * Removed `getIdTokenPayload`, `getIdTokenHeader`, `getAccessTokenPayload` and `getAccessTokenHeader` methods
 * Methods `getIdToken`, `getRefreshToken` and `getAccessToken` returns instance of Jwt class
 * Method `register` require client name as first parameter, removed methods `getClientName` and `setClientName`
+* Method `register` returns response from server and will not automatically change clientID or clientSecret
 
 ### Added
 * Support for new JWT token signature algorithm:
