@@ -631,8 +631,7 @@ class OpenIDConnectClient
 
         // If we have an authorization code then proceed to request a token
         if (isset($_REQUEST['code'])) {
-            $code = $_REQUEST['code'];
-            $tokenJson = $this->requestTokens($code);
+            $tokenJson = $this->requestTokens($_REQUEST['code']);
 
             // Throw an error if the server returns one
             if (isset($tokenJson->error)) {
@@ -891,7 +890,7 @@ class OpenIDConnectClient
             return $default;
         }
 
-        throw new OpenIDConnectClientException("The provider $param could not be fetched. Make sure your provider has a well known configuration available.");
+        throw new OpenIDConnectClientException("The provider $param is not available.");
     }
 
     /**
@@ -1196,8 +1195,9 @@ class OpenIDConnectClient
         if (function_exists('apcu_fetch') && $this->keyCacheExpiration > 0) {
             $cacheKey = self::KEYS_CACHE . md5($jwksUri);
             /** @var Jwks|false $jwks */
-            $jwks = $this->jwks = apcu_fetch($cacheKey);
+            $jwks = apcu_fetch($cacheKey);
             if ($jwks) {
+                $this->jwks = $jwks;
                 try {
                     return $jwks->getKeyForHeader($header);
                 } catch (\Exception $e) {
@@ -1608,9 +1608,9 @@ class OpenIDConnectClient
     /**
      * Dynamic Client Registration
      *
-     * @param string $clientName
-     * @return \stdClass Decoded respone
      * @see https://openid.net/specs/openid-connect-registration-1_0.html
+     * @param string $clientName
+     * @return \stdClass Decoded response
      * @throws OpenIDConnectClientException
      * @throws JsonException
      */
@@ -1979,7 +1979,7 @@ class OpenIDConnectClient
     }
 
     /**
-     * @param int $urlEncoding
+     * @param int $urlEncoding PHP_QUERY_RFC1738 or PHP_QUERY_RFC3986 constant
      * @throws \InvalidArgumentException if unsupported URL encoding provided
      */
     public function setUrlEncoding(int $urlEncoding)
