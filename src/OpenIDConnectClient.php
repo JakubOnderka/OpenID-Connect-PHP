@@ -2174,6 +2174,11 @@ class OpenIDConnectClient
             CURLOPT_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP, // be sure that only HTTP and HTTPS protocols are enabled
         ];
 
+        // If URL starts with https://, allow just to use HTTPS. This will also allows HTTPS only when following redirects
+        if (strpos($url, 'https://') === 0) {
+            $options[CURLOPT_PROTOCOLS] = CURLPROTO_HTTPS;
+        }
+
         // Determine whether this is a GET or POST
         if ($postBody !== null) {
             // Determine if this is a JSON payload and add the appropriate content type
