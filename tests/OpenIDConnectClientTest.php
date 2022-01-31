@@ -355,7 +355,7 @@ class OpenIDConnectClientTest extends TestCase
         $this->assertEquals('b', $client->requestUserInfo('a'));
     }
 
-    public function testRequestAuthorization_additional_response_types()
+    public function testRequestAuthorization_additional_responseTypes()
     {
         $this->cleanup();
 
@@ -417,7 +417,6 @@ class OpenIDConnectClientTest extends TestCase
     {
         $this->cleanup();
 
-        $_REQUEST['id_token'] = 'abc.123.xyz';
         $_REQUEST['code'] = 'code';
         $_REQUEST['state'] = 'state';
         $_SESSION['openid_connect_state'] = 'state';
@@ -443,8 +442,29 @@ class OpenIDConnectClientTest extends TestCase
                     $this->assertContains('Authorization: Basic Y2xpZW50LWlkOmNsaWVudC1zZWNyZXQ=', $headers);
                     return true;
                 })
-            )->willReturn(new CurlResponse('{"id_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg","access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg"}'));
+            )->willReturn($this->authorizationCodeResponse());
         $this->assertTrue($client->authenticate());
+    }
+
+    public function testAuthenticate_differentState()
+    {
+        $this->cleanup();
+
+        $_REQUEST['code'] = 'code';
+        $_REQUEST['state'] = 'state_different';
+        $_SESSION['openid_connect_state'] = 'state';
+
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
+        $client->setClientID('client-id');
+        $client->setClientSecret('client-secret');
+        $client->providerConfigParam([
+            'token_endpoint' => 'https://example.com',
+            'token_endpoint_auth_methods_supported' => ['client_secret_basic'],
+        ]);
+        $client->method('fetchURL')->willReturn($this->authorizationCodeResponse());
+
+        $this->expectExceptionMessage('State from session is different than provided state from request');
+        $client->authenticate();
     }
 
     public function testRefreshToken()
@@ -473,11 +493,10 @@ class OpenIDConnectClientTest extends TestCase
         $this->assertNotEmpty($client->getRefreshToken());
     }
 
-    public function testRequestTokensClientSecretJwt()
+    public function testRequestTokens_clientSecretJwtAuth_supported()
     {
         $this->cleanup();
 
-        $_REQUEST['id_token'] = 'abc.123.xyz';
         $_REQUEST['code'] = 'code';
         $_REQUEST['state'] = 'state';
         $_SESSION['openid_connect_state'] = 'state';
@@ -499,15 +518,14 @@ class OpenIDConnectClientTest extends TestCase
                 $this->assertEquals('urn:ietf:params:oauth:client-assertion-type:jwt-bearer', $post['client_assertion_type']);
                 $this->assertTrue($client->verifyJwtSignature($post['client_assertion']));
                 return true;
-            }))->willReturn(new CurlResponse('{"id_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg","access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg"}'));
+            }))->willReturn($this->authorizationCodeResponse());
         $this->assertTrue($client->authenticate());
     }
 
-    public function testRequestTokensClientClientSecretPost()
+    public function testRequestTokens_clientSecretJwtAuth_notSupported()
     {
         $this->cleanup();
 
-        $_REQUEST['id_token'] = 'abc.123.xyz';
         $_REQUEST['code'] = 'code';
         $_REQUEST['state'] = 'state';
         $_SESSION['openid_connect_state'] = 'state';
@@ -529,12 +547,18 @@ class OpenIDConnectClientTest extends TestCase
                 $this->assertEquals('client-id', $post['client_id']);
                 $this->assertEquals('client-secret', $post['client_secret']);
                 return true;
-            }))->willReturn(new CurlResponse('{"id_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg","access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg"}'));
+            }))->willReturn($this->authorizationCodeResponse());
         $this->assertTrue($client->authenticate());
 
         $this->assertEquals('John Doe', $client->getVerifiedClaims()->name);
         $this->assertEquals('John Doe', $client->getVerifiedClaims('name'));
         $this->assertNull($client->getVerifiedClaims('unknwon'));
+    }
+
+    private function authorizationCodeResponse(): CurlResponse
+    {
+        $response = '{"id_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg","access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.he0ErCNloe4J7Id0Ry2SEDg09lKkZkfsRiGsdX_vgEg"}';
+        return new CurlResponse($response);
     }
 
     private function cleanup()

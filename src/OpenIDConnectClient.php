@@ -642,13 +642,7 @@ class OpenIDConnectClient
                 throw new OpenIDConnectClientException('Got response: ' . $tokenJson->error);
             }
 
-            // Do an OpenID Connect session check
-            if ($_REQUEST['state'] !== $this->getSessionKey(self::STATE)) {
-                throw new OpenIDConnectClientException('Unable to determine state');
-            }
-
-            // Cleanup state
-            $this->unsetSessionKey(self::STATE);
+            $this->validateStateFromSession();
 
             if (!isset($tokenJson->id_token)) {
                 throw new OpenIDConnectClientException('User did not authorize openid scope.');
@@ -689,28 +683,22 @@ class OpenIDConnectClient
 
         if ($this->allowImplicitFlow && isset($_REQUEST['id_token'])) {
             // if we have no code but an id_token use that
-            $id_token = $_REQUEST['id_token'];
+            $idToken = $_REQUEST['id_token'];
 
             $accessToken = null;
             if (isset($_REQUEST['access_token'])) {
                 $accessToken = $_REQUEST['access_token'];
             }
 
-            // Do an OpenID Connect session check
-            if ($_REQUEST['state'] !== $this->getSessionKey(self::STATE)) {
-                throw new OpenIDConnectClientException('Unable to determine state');
-            }
-
-            // Cleanup state
-            $this->unsetSessionKey(self::STATE);
+            $this->validateStateFromSession();
 
             // Verify the signature
-            if (!$this->verifyJwtSignature($id_token)) {
+            if (!$this->verifyJwtSignature($idToken)) {
                 throw new OpenIDConnectClientException('Unable to verify ID token signature');
             }
 
             // Save the id token
-            $this->idToken = new Jwt($id_token);
+            $this->idToken = new Jwt($idToken);
 
             // If this is a valid claim
             try {
@@ -2074,6 +2062,30 @@ class OpenIDConnectClient
         }
 
         $this->authenticationMethod = $authenticationMethod;
+    }
+
+    /**
+     * @returns void
+     * @throws OpenIDConnectClientException
+     */
+    public function validateStateFromSession()
+    {
+        if (!isset($_REQUEST['state'])) {
+            throw new OpenIDConnectClientException('State not provided in request');
+        }
+
+        $stateFromSession = $this->getSessionKey(self::STATE);
+        if ($stateFromSession === null) {
+            throw new OpenIDConnectClientException('State is not set in session');
+        }
+
+        // Cleanup session state
+        $this->unsetSessionKey(self::STATE);
+
+        // Check if state from session and from request is the same
+        if (!hash_equals($stateFromSession, $_REQUEST['state'])) {
+            throw new OpenIDConnectClientException('State from session is different than provided state from request');
+        }
     }
 
     /**
