@@ -9,10 +9,11 @@ the OpenID Connect protocol to setup authentication.
 Jumbojett`s library is great, but lacks of some features, testing, and it is not ready for new PHP versions. So I created
 this fork. This fork requires PHP 7.0 or greater, if you need to use older PHP version, please use original version.
 
-Most important changes:
+**Most important changes:**
 
 * Added support for elliptic curve (EC) JWT token signature algorithms, that are faster than RSA signatures
 * Added support for `client_secret_jwt` authentication method to token endpoint, that is more secure that traditional method
+* JWT ID Token Validation compliant to OpenID Connect standard
 * Much higher code coverage by unit tests
 * A lot of small optimisations and fixes
 
@@ -39,10 +40,7 @@ require __DIR__ . '/vendor/autoload.php';
 ```php
 use JakubOnderka\OpenIDConnectClient;
 
-$oidc = new OpenIDConnectClient('https://id.provider.com',
-                                'ClientIDHere',
-                                'ClientSecretHere');
-$oidc->setCertPath('/path/to/my.cert');
+$oidc = new OpenIDConnectClient('https://id.provider.com', 'ClientIDHere', 'ClientSecretHere');
 $oidc->authenticate();
 $name = $oidc->requestUserInfo('given_name');
 ```
@@ -57,8 +55,8 @@ use JakubOnderka\OpenIDConnectClient;
 $oidc = new OpenIDConnectClient("https://id.provider.com");
 
 $oidc->register();
-$client_id = $oidc->getClientID();
-$client_secret = $oidc->getClientSecret();
+$clientId = $oidc->getClientID();
+$clientSecret = $oidc->getClientSecret();
 
 // Be sure to add logic to store the client id and client secret
 ```
@@ -78,13 +76,11 @@ $oidc->setCertPath("/path/to/my.cert");
 ```php
 use JakubOnderka\OpenIDConnectClient;
 
-$oidc = new OpenIDConnectClient('https://id.provider.com',
-                                'ClientIDHere',
-                                'ClientSecretHere');
-$oidc->providerConfigParam(array('token_endpoint'=>'https://id.provider.com/connect/token'));
+$oidc = new OpenIDConnectClient('https://id.provider.com', 'ClientIDHere', 'ClientSecretHere');
+$oidc->providerConfigParam(['token_endpoint'=>'https://id.provider.com/connect/token']);
 $oidc->addScope('my_scope');
 
-// this assumes success (to validate check if the access_token property is there and a valid JWT) :
+// This assumes success (to validate check if the access_token property is there and a valid JWT) :
 $clientCredentialsToken = $oidc->requestClientCredentialsToken()->access_token;
 ```
 
@@ -93,17 +89,15 @@ $clientCredentialsToken = $oidc->requestClientCredentialsToken()->access_token;
 ```php
 use JakubOnderka\OpenIDConnectClient;
 
-$oidc = new OpenIDConnectClient('https://id.provider.com',
-                                'ClientIDHere',
-                                'ClientSecretHere');
+$oidc = new OpenIDConnectClient('https://id.provider.com', 'ClientIDHere','ClientSecretHere');
 $oidc->providerConfigParam(array('token_endpoint'=>'https://id.provider.com/connect/token'));
 $oidc->addScope('my_scope');
 
-//Add username and password
-$oidc->addAuthParam(array('username'=>'<Username>'));
-$oidc->addAuthParam(array('password'=>'<Password>'));
+// Add username and password
+$oidc->addAuthParam(['username' => '<Username>']);
+$oidc->addAuthParam(['password' => '<Password>']);
 
-//Perform the auth and return the token (to validate check if the access_token property is there and a valid JWT) :
+// Perform the auth and return the token (to validate check if the access_token property is there and a valid JWT) :
 $token = $oidc->requestResourceOwnerToken(TRUE)->access_token;
 ```
 
@@ -147,16 +141,14 @@ if (!$data->active) {
 ```php
 use JakubOnderka\OpenIDConnectClient;
 
-$oidc = new OpenIDConnectClient('https://id.provider.com',
-                                'ClientIDHere',
-                                null);
+$oidc = new OpenIDConnectClient('https://id.provider.com', 'ClientIDHere');
 $oidc->setCodeChallengeMethod('S256');
 $oidc->authenticate();
 $name = $oidc->requestUserInfo('given_name');
 ```
 
 ## Development Environments
-In some cases you may need to disable SSL security on on your development systems.
+In some cases you may need to disable SSL security on your development systems.
 Note: This is not recommended on production systems.
 
 ```php
