@@ -1393,6 +1393,10 @@ class OpenIDConnectClient
             throw new TokenValidationFailed("It didn't pass issuer validator", $this->getIssuer(), $claims->iss);
         }
 
+        if (!isset($claims->sub)) {
+            throw new TokenValidationFailed("Required `sub` claim not provided");
+        }
+
         // (3). Audience
         if (!isset($claims->aud)) {
             throw new TokenValidationFailed("Required `aud` claim not provided");
