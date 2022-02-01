@@ -337,7 +337,7 @@ class OpenIDConnectClientTest extends TestCase
         $client = $this->getMockBuilder(OpenIDConnectClient::class)
             ->setMethods(['fetchURL', 'getResponseCode'])
             ->getMock();
-        $client->setAccessToken(new Jwt('aa.bb.cc'));
+        $client->setAccessToken('aa.bb.cc');
         $client->providerConfigParam([
             'userinfo_endpoint' => 'https://example.com',
         ]);

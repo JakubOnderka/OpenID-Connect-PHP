@@ -335,6 +335,7 @@ class Jwt
     }
 
     /**
+     * JOSE header
      * @throws JsonException
      * @throws \Exception
      */
@@ -450,7 +451,7 @@ class OpenIDConnectClient
     private $verifyHost = true;
 
     /**
-     * @var Jwt|null if we acquire an access token it will be stored here
+     * @var string|null if we acquire an access token it will be stored here. Access token can be any string.
      */
     protected $accessToken;
 
@@ -656,7 +657,7 @@ class OpenIDConnectClient
             $this->idToken = new Jwt($tokenJson->id_token);
 
             // Save the access token
-            $this->accessToken = new Jwt($tokenJson->access_token);
+            $this->accessToken = $tokenJson->access_token;
 
             // If this is a valid claim
             try {
@@ -711,7 +712,7 @@ class OpenIDConnectClient
 
             // Save the access token
             if ($accessToken) {
-                $this->accessToken = new Jwt($accessToken);
+                $this->accessToken = $accessToken;
             }
 
             // Success!
@@ -1161,7 +1162,7 @@ class OpenIDConnectClient
         $json = $this->endpointRequest($tokenParams);
 
         if (isset($json->access_token)) {
-            $this->accessToken = new Jwt($json->access_token);
+            $this->accessToken = $json->access_token;
         }
 
         if (isset($json->refresh_token)) {
@@ -1708,16 +1709,16 @@ class OpenIDConnectClient
      *
      * May be required for subclasses of this Client.
      *
-     * @param Jwt $accessToken
+     * @param string $accessToken
      * @return void
      */
-    public function setAccessToken(Jwt $accessToken)
+    public function setAccessToken(string $accessToken)
     {
         $this->accessToken = $accessToken;
     }
 
     /**
-     * @return Jwt|null
+     * @return string|null
      */
     public function getAccessToken()
     {
