@@ -391,6 +391,30 @@ class Jwt
     {
         return $this->token;
     }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @param string $hashAlg
+     * @param string $secret
+     * @return Jwt
+     * @throws JsonException
+     */
+    public static function createHmacSigned(array $payload, string $hashAlg, string $secret): Jwt
+    {
+        if (!in_array($hashAlg, ['HS256', 'HS384', 'HS512'])) {
+            throw new \InvalidArgumentException("Invalid hash algorithm $hashAlg");
+        }
+
+        $header = [
+            'alg' => $hashAlg,
+            'typ' => 'JWT',
+        ];
+        $header = base64url_encode(Json::encode($header));
+        $payload = base64url_encode(Json::encode($payload));
+        $hmac = hash_hmac('sha' . substr($hashAlg, 2), "$header.$payload", $secret, true);
+        $signature = base64url_encode($hmac);
+        return new Jwt("$header.$payload.$signature");
+    }
 }
 
 class OpenIDConnectClient
@@ -720,7 +744,7 @@ class OpenIDConnectClient
         }
 
         $this->requestAuthorization();
-        return false;
+        return false; // this should never happen
     }
 
     /**
@@ -1041,7 +1065,7 @@ class OpenIDConnectClient
         $pushedAuthorizationEndpoint = $this->getProviderConfigValue('pushed_authorization_request_endpoint', false);
         if ($pushedAuthorizationEndpoint) {
             if ($this->clientSecret) {
-                $authParams = ['request' => $this->createHmacSignedJwt($authParams, 'HS256', $this->clientSecret)];
+                $authParams = ['request' => (string)Jwt::createHmacSigned($authParams, 'HS256', $this->clientSecret)];
             }
             $response = $this->endpointRequest($authParams, 'pushed_authorization_request');
             if (isset($response->request_uri)) {
@@ -1400,7 +1424,8 @@ class OpenIDConnectClient
         // (10). Time at which the JWT was issued.
         $this->validateIat($claims, $time);
 
-        // (11).
+        // (11). If a nonce value was sent in the Authentication Request, a nonce Claim MUST be present and its value
+        // checked to verify that it is the same value as the one that was sent in the Authentication Request.
         $sessionNonce = $this->getSessionKey(self::NONCE);
         if (!isset($claims->nonce)) {
             throw new TokenValidationFailed("Required `nonce` claim not provided");
@@ -1410,6 +1435,9 @@ class OpenIDConnectClient
             throw new TokenValidationFailed("Nonce do not match", $sessionNonce, $claims->nonce);
         }
 
+        // Access Token hash value. Its value is the base64url encoding of the left-most half of the hash of the octets
+        // of the ASCII representation of the access_token value, where the hash algorithm used is the hash algorithm
+        // used in the alg Header Parameter of the ID Token's JOSE Header.
         if (isset($claims->at_hash) && isset($accessToken)) {
             $idTokenHeader = $this->idToken->header();
             if (isset($idTokenHeader->alg) && $idTokenHeader->alg !== 'none') {
@@ -1549,11 +1577,15 @@ class OpenIDConnectClient
      */
     public function requestUserInfo(string $attribute = null)
     {
-        if (!isset($this->accessToken)) {
-            throw new OpenIDConnectClientException("Access token is not defined");
-        }
-
         if (!$this->userInfo) {
+            if (!isset($this->accessToken)) {
+                throw new OpenIDConnectClientException("Access token is not defined");
+            }
+
+            if (!$this->getIdToken()) {
+                throw new OpenIDConnectClientException("ID token is required for verifying that `sub` claim match when requesting userInfo");
+            }
+
             $userInfoEndpoint = $this->getProviderConfigValue('userinfo_endpoint');
             $userInfoEndpoint .= '?schema=openid';
 
@@ -1565,6 +1597,17 @@ class OpenIDConnectClient
             ];
 
             $userInfo = $this->fetchJsonOrJwk($userInfoEndpoint, null, $headers);
+
+            if (!isset($userInfo->sub)) {
+                throw new OpenIDConnectClientException("Invalid user info returned, required `sub` claim not provided");
+            }
+
+            // The sub Claim in the UserInfo Response MUST be verified to exactly match the sub Claim in the ID Token;
+            // if they do not match, the UserInfo Response values MUST NOT be used.
+            if ($userInfo->sub !== $this->getIdToken()->payload()->sub) {
+                throw new OpenIDConnectClientException("Invalid user info returned, `sub` claim doesn't match with `sub` claim from ID token");
+            }
+
             $this->userInfo = $userInfo;
         }
 
@@ -2289,7 +2332,7 @@ class OpenIDConnectClient
         // See https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication
         if ($this->authenticationMethod === 'client_secret_jwt') {
             $time = time();
-            $jwt = $this->createHmacSignedJwt([
+            $jwt = Jwt::createHmacSigned([
                 'iss' => $this->clientID,
                 'sub' => $this->clientID,
                 'aud' => $this->getProviderConfigValue("token_endpoint"), // audience should be all the time token_endpoint
@@ -2299,7 +2342,7 @@ class OpenIDConnectClient
             ], 'HS256', $this->clientSecret);
 
             $params['client_assertion_type'] = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
-            $params['client_assertion'] = $jwt;
+            $params['client_assertion'] = (string)$jwt;
         } elseif (in_array('client_secret_basic', $authMethodsSupported, true) && $this->authenticationMethod !== 'client_secret_post') {
             $headers = ['Authorization: Basic ' . base64_encode(urlencode($this->clientID) . ':' . urlencode($this->clientSecret))];
         } else { // client_secret_post fallback
@@ -2342,29 +2385,5 @@ class OpenIDConnectClient
     {
         header('Location: ' . $url);
         exit;
-    }
-
-    /**
-     * @param array<string, mixed> $payload
-     * @param string $hashAlg
-     * @param string $secret
-     * @return string
-     * @throws JsonException
-     */
-    private function createHmacSignedJwt(array $payload, string $hashAlg, string $secret): string
-    {
-        if (!in_array($hashAlg, ['HS256', 'HS384', 'HS512'])) {
-            throw new \InvalidArgumentException("Invalid hash algorithm $hashAlg");
-        }
-
-        $header = [
-            'alg' => $hashAlg,
-            'typ' => 'JWT',
-        ];
-        $header = base64url_encode(Json::encode($header));
-        $payload = base64url_encode(Json::encode($payload));
-        $hmac = hash_hmac('sha' . substr($hashAlg, 2), "$header.$payload", $secret, true);
-        $signature = base64url_encode($hmac);
-        return "$header.$payload.$signature";
     }
 }

@@ -335,12 +335,15 @@ class OpenIDConnectClientTest extends TestCase
 
         /** @var OpenIDConnectClient | MockObject $client */
         $client = $this->getMockBuilder(OpenIDConnectClient::class)
-            ->setMethods(['fetchURL', 'getResponseCode'])
+            ->setMethods(['fetchURL', 'getResponseCode', 'getIdToken'])
             ->getMock();
         $client->setAccessToken('aa.bb.cc');
         $client->providerConfigParam([
             'userinfo_endpoint' => 'https://example.com',
         ]);
+        $client->method('getIdToken')->willReturn(Jwt::createHmacSigned([
+            'sub' => 'sub',
+        ], 'HS256', 'secret'));
         $client->method('getResponseCode')->willReturn(200);
         $client->method('fetchURL')
             ->with(
@@ -351,7 +354,7 @@ class OpenIDConnectClientTest extends TestCase
                     return true;
                 })
             )
-            ->willReturn(new CurlResponse('{"a":"b"}'));
+            ->willReturn(new CurlResponse('{"a":"b","sub":"sub"}'));
         $this->assertEquals('b', $client->requestUserInfo('a'));
     }
 
