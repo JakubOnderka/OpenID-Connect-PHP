@@ -480,7 +480,7 @@ class OpenIDConnectClient
     protected $accessToken;
 
     /**
-     * @var Jwt|null if we acquire a refresh token it will be stored here
+     * @var string|null if we acquire a refresh token it will be stored here
      */
     private $refreshToken;
 
@@ -698,7 +698,7 @@ class OpenIDConnectClient
 
             // Save the refresh token, if we got one
             if (isset($tokenJson->refresh_token)) {
-                $this->refreshToken = new Jwt($tokenJson->refresh_token);
+                $this->refreshToken = $tokenJson->refresh_token;
             }
 
             // Success!
@@ -1190,7 +1190,7 @@ class OpenIDConnectClient
         }
 
         if (isset($json->refresh_token)) {
-            $this->refreshToken = new Jwt($json->refresh_token);
+            $this->refreshToken = $json->refresh_token;
         }
 
         return $json;
@@ -1773,7 +1773,7 @@ class OpenIDConnectClient
     }
 
     /**
-     * @return Jwt|null
+     * @return string|null
      */
     public function getRefreshToken()
     {
