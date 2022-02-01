@@ -112,13 +112,13 @@ class Json
     {
         if (defined('JSON_THROW_ON_ERROR')) {
             try {
-                return json_encode($value, JSON_THROW_ON_ERROR);
+                return json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             } catch (\JsonException $e) {
                 throw new JsonException("Could not encode provided value", 0, $e);
             }
         }
 
-        $encoded = json_encode($value);
+        $encoded = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         if ($encoded === false) {
             throw new JsonException("Could not encode provided value: " . json_last_error_msg());
         }

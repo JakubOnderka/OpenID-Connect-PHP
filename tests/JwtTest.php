@@ -18,4 +18,19 @@ class JwtTest extends TestCase
         $jwt->payload();
         $jwt->signature();
      }
+
+    public function testCreate()
+    {
+         $jwt = Jwt::createHmacSigned([
+             'ahoj' => 'světe', // unicode
+         ], 'HS256', 'test');
+
+         $this->assertEquals('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhaG9qIjoic3bEm3RlIn0.lIWI8qXF45Fjy6HwXqrnzDV8WKPXOdokQAufGuAZMeE', (string) $jwt);
+
+         $jwtDecoded = new Jwt((string)$jwt);
+         $this->assertEquals('HS256', $jwtDecoded->header()->alg);
+         $this->assertEquals('JWT', $jwtDecoded->header()->typ);
+         $this->assertEquals('světe', $jwtDecoded->payload()->ahoj);
+         $jwtDecoded->signature();
+    }
 }
