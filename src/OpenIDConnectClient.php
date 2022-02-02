@@ -150,6 +150,34 @@ class TokenValidationFailed extends \Exception
     }
 }
 
+/**
+ * Error Response from section 5.2 of RFC 6749
+ * @see https://datatracker.ietf.org/doc/html/rfc6749#section-5.2
+ */
+class ErrorResponse extends OpenIDConnectClientException
+{
+    /** @var string */
+    private $error;
+
+    public function __construct(string $error, string $description = null, \Throwable $previous = null)
+    {
+        $this->error = $error;
+
+        $message = "Error received from IdP: ";
+        if ($description) {
+            $message .= $description . " (error $error)";
+        } else {
+            $message .= $error;
+        }
+        parent::__construct($message, $previous);
+    }
+
+    public function getError(): string
+    {
+        return $this->error;
+    }
+}
+
 class CurlResponse
 {
     /** @var string */
@@ -669,14 +697,6 @@ class OpenIDConnectClient
         if (isset($_REQUEST['code'])) {
             $tokenJson = $this->requestTokens($_REQUEST['code']);
 
-            // Throw an error if the server returns one
-            if (isset($tokenJson->error)) {
-                if (isset($tokenJson->error_description)) {
-                    throw new OpenIDConnectClientException('Error received from IdP: ' . $tokenJson->error_description);
-                }
-                throw new OpenIDConnectClientException('Got response: ' . $tokenJson->error);
-            }
-
             $this->validateStateFromSession();
 
             if (!isset($tokenJson->id_token)) {
@@ -1159,23 +1179,29 @@ class OpenIDConnectClient
 
         $ccm = $this->getCodeChallengeMethod();
         if (empty($ccm)) {
-            $this->tokenResponse = $this->endpointRequest($tokenParams);
-            return $this->tokenResponse;
+            $response = $this->endpointRequest($tokenParams);
+        } else {
+            $cv = $this->getSessionKey(self::CODE_VERIFIER);
+            if (empty($cv)) {
+                throw new OpenIDConnectClientException("Code verifier from session is empty");
+            }
+
+            $tokenParams = array_merge($tokenParams, [
+                'client_id' => $this->clientID,
+                'code_verifier' => $cv,
+            ]);
+
+            $tokenEndpoint = $this->getProviderConfigValue('token_endpoint');
+            $response = $this->fetchURL($tokenEndpoint, $tokenParams)->json(true);
         }
 
-        $cv = $this->getSessionKey(self::CODE_VERIFIER);
-        if (empty($cv)) {
-            throw new OpenIDConnectClientException("Code verifier from session is empty");
+        if (isset($response->error)) {
+            // @phpstan-ignore-next-line phpstan bug #6026
+            throw new ErrorResponse($response->error, $response->error_description ?? null);
         }
 
-        $tokenParams = array_merge($tokenParams, [
-            'client_id' => $this->clientID,
-            'code_verifier' => $cv,
-        ]);
-
-        $tokenEndpoint = $this->getProviderConfigValue('token_endpoint');
-        $this->tokenResponse = $this->fetchURL($tokenEndpoint, $tokenParams)->json(true);
-        return $this->tokenResponse;
+        $this->tokenResponse = $response;
+        return $response;
     }
 
     /**
@@ -1690,8 +1716,9 @@ class OpenIDConnectClient
             throw new OpenIDConnectClientException('Error registering: JSON response received from the server was invalid.', 0, $e);
         }
 
-        if (isset($decoded->error_description)) {
-            throw new OpenIDConnectClientException($decoded->error_description);
+        if (isset($decoded->error)) {
+            // @phpstan-ignore-next-line phpstan bug #6026
+            throw new ErrorResponse($decoded->error, $decoded->error_description ?? null);
         }
 
         return $decoded;
@@ -1743,7 +1770,14 @@ class OpenIDConnectClient
         if ($response->responseCode === 200) {
             return true;
         }
-        throw new OpenIDConnectClientException($response->json(true));
+        $decoded = $response->json(true);
+        if (isset($decoded->error)) {
+            // @phpstan-ignore-next-line phpstan bug #6026
+            throw new ErrorResponse($decoded->error, $decoded->error_description ?? null);
+        }
+
+        // invalid response
+        throw new OpenIDConnectClientException($decoded);
     }
 
     /**
@@ -2376,7 +2410,12 @@ class OpenIDConnectClient
      */
     protected function endpointRequest(array $params, string $endpointName = 'token'): \stdClass
     {
-        return $this->endpointRequestRaw($params, $endpointName)->json(true);
+        $response = $this->endpointRequestRaw($params, $endpointName)->json(true);
+        if (isset($response->error)) {
+            // @phpstan-ignore-next-line phpstan bug #6026
+            throw new ErrorResponse($response->error, $response->error_description ?? null);
+        }
+        return $response;
     }
 
     /**
