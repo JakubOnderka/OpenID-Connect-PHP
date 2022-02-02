@@ -4,9 +4,9 @@ A simple library that allows an application to authenticate a user through the b
 This library hopes to encourage OpenID Connect use by making it simple enough for a developer with little knowledge of
 the OpenID Connect protocol to setup authentication.
 
-## This is a fork of [jumbojett/OpenID-Connect-PHP](https://github.com/jumbojett/OpenID-Connect-PHP)
+**This is a fork of [jumbojett/OpenID-Connect-PHP](https://github.com/jumbojett/OpenID-Connect-PHP)**
 
-Jumbojett`s library is great, but lacks of some features, testing, and it is not ready for new PHP versions. So I created
+Jumbojett`s library is great, but lacks of some features, proper testing, and it is not ready for new PHP versions. So I created
 this fork. This fork requires PHP 7.0 or greater, if you need to use older PHP version, please use original version.
 
 **Most important changes:**
@@ -77,10 +77,10 @@ $oidc->setCertPath("/path/to/my.cert");
 use JakubOnderka\OpenIDConnectClient;
 
 $oidc = new OpenIDConnectClient('https://id.provider.com', 'ClientIDHere', 'ClientSecretHere');
-$oidc->providerConfigParam(['token_endpoint'=>'https://id.provider.com/connect/token']);
+$oidc->providerConfigParam(['token_endpoint' => 'https://id.provider.com/connect/token']);
 $oidc->addScope('my_scope');
 
-// This assumes success (to validate check if the access_token property is there and a valid JWT) :
+// This assumes success (to validate check if the access_token property is there and a valid JWT):
 $clientCredentialsToken = $oidc->requestClientCredentialsToken()->access_token;
 ```
 
@@ -94,10 +94,12 @@ $oidc->providerConfigParam(['token_endpoint' => 'https://id.provider.com/connect
 $oidc->addScope('my_scope');
 
 // Add username and password
-$oidc->addAuthParam(['username' => '<Username>']);
-$oidc->addAuthParam(['password' => '<Password>']);
+$oidc->addAuthParam([
+  'username' => '<Username>',
+  'password' => '<Password>',
+]);
 
-// Perform the auth and return the token (to validate check if the access_token property is there and a valid JWT) :
+// Perform the auth and return the token (to validate check if the access_token property is there and a valid JWT):
 $token = $oidc->requestResourceOwnerToken(true)->access_token;
 ```
 
