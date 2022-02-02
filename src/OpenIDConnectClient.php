@@ -1557,7 +1557,7 @@ class OpenIDConnectClient
             if (apcu_exists(self::LOGOUT_JTI . $claims->jti)) {
                 throw new TokenValidationFailed("`jti` was recently used", null, $claims->jti);
             }
-            apcu_store(self::LOGOUT_JTI . $claims->jti, true, self::IAT_SLACK);
+            apcu_store(self::LOGOUT_JTI . $claims->jti, true, self::IAT_SLACK * 2 + 5);
         }
     }
 
