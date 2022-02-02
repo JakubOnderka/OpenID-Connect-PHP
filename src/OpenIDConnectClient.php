@@ -80,10 +80,11 @@ class Json
 {
     /**
      * @param string $json
-     * @return \stdClass
+     * @param bool $mustBeObject Check that decoded JSON is an object
+     * @return \stdClass|mixed
      * @throws JsonException
      */
-    public static function decode(string $json): \stdClass
+    public static function decode(string $json, $mustBeObject = true)
     {
         if (defined('JSON_THROW_ON_ERROR')) {
             try {
@@ -97,7 +98,7 @@ class Json
                 throw new JsonException("Could not decode provided JSON: " . json_last_error_msg());
             }
         }
-        if (!$decoded instanceof \stdClass) {
+        if ($mustBeObject && !$decoded instanceof \stdClass) {
             throw new JsonException("Decoded JSON must be object, " . gettype($decoded) . " type received.");
         }
         return $decoded;
@@ -165,6 +166,16 @@ class CurlResponse
         $this->data = $data;
         $this->responseCode = $responseCode;
         $this->contentType = $contentType;
+    }
+
+    /**
+     * @param bool $mustBeObject Check that decoded JSON is an object
+     * @return \stdClass|mixed
+     * @throws JsonException
+     */
+    public function json(bool $mustBeObject = false)
+    {
+        return Json::decode($this->data, $mustBeObject);
     }
 
     /**
@@ -878,7 +889,7 @@ class OpenIDConnectClient
         if (!$response->isSuccess()) {
             throw new OpenIDConnectClientException("Invalid response code $response->responseCode when fetching wellKnow, expected 200");
         }
-        $metadata = Json::decode($response->data);
+        $metadata = $response->json(true);
 
         $this->validateMetadataIssuer($metadata);
 
@@ -1127,7 +1138,7 @@ class OpenIDConnectClient
         }
 
         $token_endpoint = $this->getProviderConfigValue('token_endpoint');
-        return Json::decode($this->fetchURL($token_endpoint, $postData)->data);
+        return $this->fetchURL($token_endpoint, $postData)->json(true);
     }
 
     /**
@@ -1163,7 +1174,7 @@ class OpenIDConnectClient
         ]);
 
         $tokenEndpoint = $this->getProviderConfigValue('token_endpoint');
-        $this->tokenResponse = Json::decode($this->fetchURL($tokenEndpoint, $tokenParams)->data);
+        $this->tokenResponse = $this->fetchURL($tokenEndpoint, $tokenParams)->json(true);
         return $this->tokenResponse;
     }
 
@@ -1236,7 +1247,7 @@ class OpenIDConnectClient
             if (!$response->isSuccess()) {
                 throw new \Exception("Invalid response code $response->responseCode.");
             }
-            $jwks = $this->jwks = new Jwks(Json::decode($response->data)->keys);
+            $jwks = $this->jwks = new Jwks($response->json(true)->keys);
         } catch (\Exception $e) {
             throw new OpenIDConnectClientException('Error fetching JSON from jwks_uri', 0, $e);
         }
@@ -1674,7 +1685,7 @@ class OpenIDConnectClient
         $response = $this->fetchURL($registrationEndpoint, Json::encode($postBody));
 
         try {
-            $decoded = Json::decode($response->data);
+            $decoded = $response->json(true);
         } catch (JsonException $e) {
             throw new OpenIDConnectClientException('Error registering: JSON response received from the server was invalid.', 0, $e);
         }
@@ -1714,7 +1725,7 @@ class OpenIDConnectClient
      *
      * @see https://tools.ietf.org/html/rfc7009
      * @param string $token
-     * @param string|null $tokenTypeHint
+     * @param string|null $tokenTypeHint Can be for example `access_token` or `refresh_token`
      * @return true
      * @throws OpenIDConnectClientException
      * @throws JsonException
@@ -1732,7 +1743,7 @@ class OpenIDConnectClient
         if ($response->responseCode === 200) {
             return true;
         }
-        throw new OpenIDConnectClientException(Json::decode($response->data));
+        throw new OpenIDConnectClientException($response->json(true));
     }
 
     /**
@@ -2186,13 +2197,13 @@ class OpenIDConnectClient
     }
 
     /**
-     * @param string $url
+     * @param string $url Must start with `http://` or `https://`
      * @param string|array|null $postBody string If this is set the post type will be POST
      * @param array<string> $headers Extra headers to be send with the request. Format as 'NameHeader: ValueHeader'
      * @return CurlResponse
      * @throws OpenIDConnectClientException
      */
-    protected function fetchURL(string $url, $postBody = null, array $headers = []): CurlResponse
+    public function fetchURL(string $url, $postBody = null, array $headers = []): CurlResponse
     {
         if (!$this->ch) {
             // Share handle between requests to allow keep connection alive between requests
@@ -2295,7 +2306,7 @@ class OpenIDConnectClient
             }
             return (new Jwt($response->data))->payload();
         }
-        return Json::decode($response->data);
+        return $response->json(true);
     }
 
     /**
@@ -2365,8 +2376,7 @@ class OpenIDConnectClient
      */
     protected function endpointRequest(array $params, string $endpointName = 'token'): \stdClass
     {
-        $response = $this->endpointRequestRaw($params, $endpointName);
-        return Json::decode($response->data);
+        return $this->endpointRequestRaw($params, $endpointName)->json(true);
     }
 
     /**
