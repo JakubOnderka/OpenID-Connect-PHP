@@ -850,11 +850,7 @@ class OpenIDConnectClient
     {
         // If the configuration value is not available, attempt to fetch it from a well known config endpoint
         // This is also known as auto "discovery"
-        if (!isset($this->providerConfig[$param])) {
-            $this->providerConfig[$param] = $this->getWellKnownConfigValue($param, $default);
-        }
-
-        return $this->providerConfig[$param];
+        return $this->providerConfig[$param] ?? $this->getWellKnownConfigValue($param, $default);
     }
 
     /**
@@ -942,7 +938,7 @@ class OpenIDConnectClient
             return $default;
         }
 
-        throw new OpenIDConnectClientException("The provider $param is not available.");
+        throw new OpenIDConnectClientException("The provider `$param` is not available in metadata.");
     }
 
     /**
@@ -1092,7 +1088,10 @@ class OpenIDConnectClient
         $pushedAuthorizationEndpoint = $this->getProviderConfigValue('pushed_authorization_request_endpoint', false);
         if ($pushedAuthorizationEndpoint) {
             if ($this->clientSecret) {
-                $authParams = ['request' => (string)Jwt::createHmacSigned($authParams, 'HS256', $this->clientSecret)];
+                // Send as signed JWT to remote server when client secret is set
+                $authParams = [
+                    'request' => (string)Jwt::createHmacSigned($authParams, 'HS256', $this->clientSecret)
+                ];
             }
             $response = $this->endpointRequest($authParams, 'pushed_authorization_request');
             if (isset($response->request_uri)) {
