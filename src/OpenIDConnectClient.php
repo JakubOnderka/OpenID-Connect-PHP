@@ -440,15 +440,11 @@ class Jwt
      */
     public static function createHmacSigned(array $payload, string $hashAlg, string $secret): Jwt
     {
-        if (!in_array($hashAlg, ['HS256', 'HS384', 'HS512'])) {
-            throw new \InvalidArgumentException("Invalid hash algorithm $hashAlg");
+        if (!in_array($hashAlg, ['HS256', 'HS384', 'HS512'], true)) {
+            throw new \InvalidArgumentException("Invalid JWT signature algorithm $hashAlg");
         }
 
-        $header = [
-            'alg' => $hashAlg,
-            'typ' => 'JWT',
-        ];
-        $header = base64url_encode(Json::encode($header));
+        $header = base64url_encode('{"alg":"' . $hashAlg . '","typ":"JWT"}');
         $payload = base64url_encode(Json::encode($payload));
         $hmac = hash_hmac('sha' . substr($hashAlg, 2), "$header.$payload", $secret, true);
         $signature = base64url_encode($hmac);
