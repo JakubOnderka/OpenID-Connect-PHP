@@ -303,7 +303,7 @@ class OpenIDConnectClientTest extends TestCase
                 $this->equalTo('https://example.com/par'),
                 $this->callback(function (array $value) use ($client): bool {
                     $this->assertArrayHasKey('request', $value);
-                    $this->assertTrue($client->verifyJwtSignature($value['request']));
+                    $this->assertTrue($client->verifyJwtSignature(new Jwt($value['request'])));
                     return true;
                 })
             )
@@ -335,7 +335,7 @@ class OpenIDConnectClientTest extends TestCase
 
         /** @var OpenIDConnectClient | MockObject $client */
         $client = $this->getMockBuilder(OpenIDConnectClient::class)
-            ->setMethods(['fetchURL', 'getResponseCode', 'getIdToken'])
+            ->setMethods(['fetchURL', 'getIdToken'])
             ->getMock();
         $client->setAccessToken('aa.bb.cc');
         $client->providerConfigParam([
@@ -344,7 +344,6 @@ class OpenIDConnectClientTest extends TestCase
         $client->method('getIdToken')->willReturn(Jwt::createHmacSigned([
             'sub' => 'sub',
         ], 'HS256', 'secret'));
-        $client->method('getResponseCode')->willReturn(200);
         $client->method('fetchURL')
             ->with(
                 $this->equalTo('https://example.com?schema=openid'),
@@ -355,6 +354,36 @@ class OpenIDConnectClientTest extends TestCase
                 })
             )
             ->willReturn(new CurlResponse('{"a":"b","sub":"sub"}'));
+        $this->assertEquals('b', $client->requestUserInfo('a'));
+    }
+
+    public function testRequestUserInfo_jwtTokenAsResponse()
+    {
+        $this->cleanup();
+
+        /** @var OpenIDConnectClient | MockObject $client */
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['fetchURL', 'getIdToken'])
+            ->getMock();
+        $client->setAccessToken('aa.bb.cc');
+        $client->setClientSecret('secret');
+        $client->providerConfigParam([
+            'userinfo_endpoint' => 'https://example.com',
+        ]);
+        $client->method('getIdToken')->willReturn(Jwt::createHmacSigned([
+            'sub' => 'sub',
+        ], 'HS256', 'secret'));
+        $jwtResponse = (string)Jwt::createHmacSigned(['sub' => 'sub', 'a' => 'b'], 'HS256', 'secret');
+        $client->method('fetchURL')
+            ->with(
+                $this->equalTo('https://example.com?schema=openid'),
+                $this->equalTo(null),
+                $this->callback(function (array $a) {
+                    $this->assertContains('Authorization: Bearer aa.bb.cc', $a);
+                    return true;
+                })
+            )
+            ->willReturn(new CurlResponse($jwtResponse, 200, 'application/jwt'));
         $this->assertEquals('b', $client->requestUserInfo('a'));
     }
 
@@ -519,7 +548,7 @@ class OpenIDConnectClientTest extends TestCase
                 $this->assertEquals('authorization_code', $post['grant_type']);
                 $this->assertEquals('code', $post['code']);
                 $this->assertEquals('urn:ietf:params:oauth:client-assertion-type:jwt-bearer', $post['client_assertion_type']);
-                $this->assertTrue($client->verifyJwtSignature($post['client_assertion']));
+                $this->assertTrue($client->verifyJwtSignature(new Jwt($post['client_assertion'])));
                 return true;
             }))->willReturn($this->authorizationCodeResponse());
         $this->assertTrue($client->authenticate());

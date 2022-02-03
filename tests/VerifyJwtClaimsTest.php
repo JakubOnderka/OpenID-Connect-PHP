@@ -203,13 +203,14 @@ namespace {
 
         public function testVerifyLogoutToken()
         {
+            $jwt = new Jwt("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3NlcnZlci5leGFtcGxlLmNvbSIsInN1YiI6IjI0ODI4OTc2MTAwMSIsImF1ZCI6InM2QmhkUmtxdDMiLCJpYXQiOjE0NzE1NjYxNTQsImp0aSI6ImJXSnEiLCJzaWQiOiIwOGE1MDE5Yy0xN2UxLTQ5NzctOGY0Mi02NWExMjg0M2VhMDIiLCJldmVudHMiOnsiaHR0cDovL3NjaGVtYXMub3BlbmlkLm5ldC9ldmVudC9iYWNrY2hhbm5lbC1sb2dvdXQiOnt9fX0.McD4YIsDHb8Ug5B4MRfpisQaxCCXi6EUPerx3AH3v0Q");
             $client = new OpenIDConnectClient();
             $client->setClientID('s6BhdRkqt3');
             $client->setClientSecret('ahoj');
             $client->setIssuer('https://server.example.com');
             JakubOnderka\setTime(1471566155);
-            $result = $client->verifyAndValidateLogoutToken("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3NlcnZlci5leGFtcGxlLmNvbSIsInN1YiI6IjI0ODI4OTc2MTAwMSIsImF1ZCI6InM2QmhkUmtxdDMiLCJpYXQiOjE0NzE1NjYxNTQsImp0aSI6ImJXSnEiLCJzaWQiOiIwOGE1MDE5Yy0xN2UxLTQ5NzctOGY0Mi02NWExMjg0M2VhMDIiLCJldmVudHMiOnsiaHR0cDovL3NjaGVtYXMub3BlbmlkLm5ldC9ldmVudC9iYWNrY2hhbm5lbC1sb2dvdXQiOnt9fX0.McD4YIsDHb8Ug5B4MRfpisQaxCCXi6EUPerx3AH3v0Q");
-            $this->assertInstanceOf(Jwt::class, $result);
+            $client->verifyAndValidateLogoutToken($jwt);
+            $this->assertTrue(true);
         }
 
         /**

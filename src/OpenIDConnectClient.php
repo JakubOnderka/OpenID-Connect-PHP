@@ -417,6 +417,14 @@ class Jwt
     /**
      * @return string
      */
+    public function withoutSignature(): string
+    {
+        return substr($this->token, 0, strrpos($this->token, '.'));
+    }
+
+    /**
+     * @return string
+     */
     public function __toString()
     {
         return $this->token;
@@ -690,13 +698,13 @@ class OpenIDConnectClient
                 throw new OpenIDConnectClientException('User did not authorize openid scope.');
             }
 
-            // Verify the signature
-            if (!$this->verifyJwtSignature($tokenJson->id_token)) {
-                throw new OpenIDConnectClientException('Unable to verify signature of ID token');
-            }
-
             // Save the id token
             $this->idToken = new Jwt($tokenJson->id_token);
+
+            // Verify the signature
+            if (!$this->verifyJwtSignature($this->idToken)) {
+                throw new OpenIDConnectClientException('Unable to verify signature of ID token');
+            }
 
             // Save the access token
             $this->accessToken = $tokenJson->access_token;
@@ -1337,38 +1345,24 @@ class OpenIDConnectClient
     }
 
     /**
-     * @param string $jwt encoded JWT
+     * @param Jwt $jwt
      * @return bool
      * @throws OpenIDConnectClientException
      * @throws JsonException
      */
-    public function verifyJwtSignature(string $jwt): bool
+    public function verifyJwtSignature(Jwt $jwt): bool
     {
-        $parts = explode('.', $jwt);
-        if (count($parts) !== 3) {
-            throw new OpenIDConnectClientException('JWT token is not in valid format AAA.BBB.CCC');
+        $signature = $jwt->signature();
+        if ('' === $signature) {
+            throw new OpenIDConnectClientException('Decoded signature is empty string');
         }
 
-        try {
-            $signature = base64url_decode($parts[2]);
-            if ('' === $signature) {
-                throw new \Exception('Decoded signature is empty string');
-            }
-        } catch (\Exception $e) {
-            throw new OpenIDConnectClientException('Error decoding signature from token', 0, $e);
-        }
-
-        try {
-            $header = Json::decode(base64url_decode($parts[0]));
-        } catch (\Exception $e) {
-            throw new OpenIDConnectClientException('Error decoding token header', 0, $e);
-        }
-
+        $header = $jwt->header();
         if (!isset($header->alg)) {
             throw new OpenIDConnectClientException('Error missing signature type in token header');
         }
 
-        $payload = "$parts[0].$parts[1]";
+        $payload = $jwt->withoutSignature();
         $hashType = 'sha' . substr($header->alg, 2);
 
         switch ($header->alg) {
@@ -1484,18 +1478,17 @@ class OpenIDConnectClient
 
     /**
      * Verify signature and validate claims of back channel logout token.
-     * @param string $jwt
-     * @return Jwt Verified and validated token
+     *
+     * @param Jwt $jwt
+     * @return void
      * @throws JsonException
      * @throws OpenIDConnectClientException
      * @throws TokenValidationFailed
      */
-    public function verifyAndValidateLogoutToken(string $jwt): Jwt
+    public function verifyAndValidateLogoutToken(Jwt $jwt)
     {
         $this->verifyJwtSignature($jwt);
-        $token = new Jwt($jwt);
-        $this->validateLogoutToken($token);
-        return $token;
+        $this->validateLogoutToken($jwt);
     }
 
     /**
@@ -2321,10 +2314,11 @@ class OpenIDConnectClient
             throw new OpenIDConnectClientException("Could not fetch $url, error code $response->responseCode");
         }
         if ($response->contentType === 'application/jwt') {
-            if (!$this->verifyJwtSignature($response->data)) {
+            $jwt = new Jwt($response->data);
+            if (!$this->verifyJwtSignature($jwt)) {
                 throw new OpenIDConnectClientException('Unable to verify signature');
             }
-            return (new Jwt($response->data))->payload();
+            return $jwt->payload();
         }
         return $response->json(true);
     }

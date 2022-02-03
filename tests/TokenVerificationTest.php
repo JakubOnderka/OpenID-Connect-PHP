@@ -4,6 +4,7 @@ declare(strict_types=1);
 use JakubOnderka\CurlResponse;
 use JakubOnderka\Json;
 use JakubOnderka\JwkEcFormat;
+use JakubOnderka\Jwt;
 use JakubOnderka\OpenIDConnectClient;
 use phpseclib3\Crypt\EC;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -55,6 +56,7 @@ JSON;
      */
     public function testTokenVerification(string $alg, string $jwt)
     {
+        $jwt = new Jwt($jwt);
         /** @var OpenIDConnectClient | MockObject $client */
         $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchUrl'])->getMock();
         $client->method('fetchUrl')->willReturn(new CurlResponse(file_get_contents(__DIR__ . "/data/jwks-$alg.json")));
@@ -72,6 +74,7 @@ JSON;
      */
     public function testTokenVerification_invalidKid(string $alg, string $jwt)
     {
+        $jwt = new Jwt($jwt);
         /** @var OpenIDConnectClient | MockObject $client */
         $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchUrl'])->getMock();
 
@@ -95,6 +98,8 @@ JSON;
      */
     public function testHsTokenVerification(string $jwt)
     {
+        $jwt = new Jwt($jwt);
+
         /** @var OpenIDConnectClient | MockObject $client */
         $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchUrl'])->getMock();
         $client->expects($this->never())->method('fetchUrl');

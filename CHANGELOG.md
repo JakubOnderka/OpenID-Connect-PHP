@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+### BC
+* `verifyAndValidateLogoutToken` and `verifyJwtSignature` public methods now require instance of `Jwt` class
+
 ## [1.0.0-alpha] - 2022-02-03
 
 ### BC
