@@ -370,6 +370,9 @@ class Jwt
 
     public function __construct(string $token)
     {
+        if (substr_count($token, '.') !== 2) {
+            throw new \InvalidArgumentException("Token is not valid signed JWT (JWS), it must contains three parts separated by dots");
+        }
         $this->token = $token;
     }
 
@@ -381,9 +384,6 @@ class Jwt
     public function header(): \stdClass
     {
         $headerPart = strstr($this->token, '.', true);
-        if ($headerPart === false) {
-            throw new \Exception("Invalid token provided, header part not found.");
-        }
         return Json::decode(base64url_decode($headerPart));
     }
 
@@ -399,13 +399,7 @@ class Jwt
         }
 
         $start = strpos($this->token, '.') + 1;
-        if ($start === false) {
-            throw new \Exception("Token is not in valid format, first `.` separator not found");
-        }
         $end = strpos($this->token, '.', $start);
-        if ($end === false) {
-            throw new \Exception("Token is not in valid format, second `.` separator not found");
-        }
         $this->payloadCache = Json::decode(base64url_decode(substr($this->token, $start, $end - $start)));
         return $this->payloadCache;
     }
@@ -417,9 +411,6 @@ class Jwt
     public function signature(): string
     {
         $signaturePart = strrchr($this->token, ".");
-        if ($signaturePart === false) {
-            throw new \Exception("Invalid token provided, signature part not found.");
-        }
         return base64url_decode(substr($signaturePart, 1));
     }
 
