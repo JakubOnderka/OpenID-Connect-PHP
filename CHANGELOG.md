@@ -6,21 +6,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0-alpha] - 2022-02-03
+
 ### BC
-* Required PHP 7.0 or newer
-* Required [phpseclib/phpseclib](https://phpseclib.com/) version **3**.
+* Require PHP 7.0 or newer
+* Require [phpseclib/phpseclib](https://phpseclib.com/) version **3**
 * Removed `getIdTokenPayload`, `getIdTokenHeader`, `getAccessTokenPayload` and `getAccessTokenHeader` methods
 * Methods `getIdToken`, `getRefreshToken` and `getAccessToken` returns instance of Jwt class
 * Method `register` require client name as first parameter, removed methods `getClientName` and `setClientName`
 * Method `register` returns response from server and will not automatically change clientID or clientSecret
 
 ### Added
-* Support for new JWT token signature algorithm:
-  * `ES256`
-  * `ES384`
-  * `ES512`
-  * `PS384`
-  * `PS512`
+* Support for new JWT token signature algorithm: `ES256`, `ES384`, `ES512`, `PS384` and `PS512`
 * Support for `client_secret_jwt` authentication method to token endpoint
 * Support for [Pushed Authorization Request](https://tools.ietf.org/id/draft-ietf-oauth-par-03.html)
 * Verification of [Back-Channel Logout token](https://openid.net/specs/openid-connect-backchannel-1_0.html#Validation)
