@@ -169,7 +169,7 @@ class ErrorResponse extends OpenIDConnectClientException
         } else {
             $message .= $error;
         }
-        parent::__construct($message, $previous);
+        parent::__construct($message, 0, $previous);
     }
 
     public function getError(): string
