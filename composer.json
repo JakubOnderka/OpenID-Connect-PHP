@@ -1,7 +1,12 @@
 {
     "name": "jakub-onderka/openid-connect-php",
     "description": "Bare-bones OpenID Connect client",
+    "keywords": ["oidc", "openid", "jwt", "oauth2"],
     "license": "Apache-2.0",
+    "authors": [{
+        "name": "Jakub Onderka",
+        "email": "jakub.onderka@gmail.com"
+    }],
     "require": {
         "php": ">=7.0",
         "phpseclib/phpseclib" : ">=3.0.7",
@@ -14,7 +19,8 @@
     },
     "archive" : {
         "exclude" : [
-            ".*"
+            ".*",
+            "tests"
         ]
     },
     "suggest": {
