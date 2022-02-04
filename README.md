@@ -1,5 +1,7 @@
 # PHP OpenID Connect Basic Client
 
+[![Latest Stable Version](http://poser.pugx.org/jakub-onderka/openid-connect-php/v)](https://packagist.org/packages/jakub-onderka/openid-connect-php) [![Latest Unstable Version](http://poser.pugx.org/jakub-onderka/openid-connect-php/v/unstable)](https://packagist.org/packages/jakub-onderka/openid-connect-php) [![PHP Version Require](http://poser.pugx.org/jakub-onderka/openid-connect-php/require/php)](https://packagist.org/packages/jakub-onderka/openid-connect-php)
+
 A simple library that allows an application to authenticate a user through the basic OpenID Connect flow.
 This library hopes to encourage OpenID Connect use by making it simple enough for a developer with little knowledge of
 the OpenID Connect protocol to setup authentication.
@@ -24,6 +26,7 @@ A special thanks goes to Michael Jett, original author of this library and Justi
  1. PHP 7.0 or greater
  2. CURL extension
  3. JSON extension
+ 4. APCu for caching (optional)
 
 ## Install
  1. Install library using composer
