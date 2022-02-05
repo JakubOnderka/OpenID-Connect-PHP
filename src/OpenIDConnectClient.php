@@ -1369,7 +1369,6 @@ class OpenIDConnectClient
             $response = $this->endpointRequest($tokenParams);
         }
 
-        $this->tokenResponse = $response;
         return $response;
     }
 
