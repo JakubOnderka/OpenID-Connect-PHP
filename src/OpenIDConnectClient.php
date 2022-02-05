@@ -1434,7 +1434,7 @@ class OpenIDConnectClient
         } elseif (!is_int($claims->exp) && !is_double($claims->exp)) {
             throw new TokenValidationFailed("Required `exp` claim provided, but type is incorrect", 'int', gettype($claims->exp));
         } elseif ($claims->exp < $time) {
-            throw new TokenValidationFailed("Token is already expired", $time, $claims->exp);
+            throw new TokenValidationFailed("Token is already expired, expired at " . date('c', $claims->exp));
         }
 
         // (10). Time at which the JWT was issued.
@@ -1553,9 +1553,11 @@ class OpenIDConnectClient
         } elseif (!is_int($claims->iat) && !is_double($claims->iat)) {
             throw new TokenValidationFailed("Required `iat` claim provided, but type is incorrect", 'int', gettype($claims->iat));
         } elseif (($time - $idTokenIatSlack) > $claims->iat) {
-            throw new TokenValidationFailed("Token was issued more than $idTokenIatSlack seconds ago", $time - $idTokenIatSlack, $claims->iat);
+            $issued = date('c', $claims->iat);
+            throw new TokenValidationFailed("Token was issued at $issued, that is more than $idTokenIatSlack seconds ago");
         } elseif (($time + $idTokenIatSlack) < $claims->iat) {
-            throw new TokenValidationFailed("Token was issued more than $idTokenIatSlack seconds in future", $time + $idTokenIatSlack, $claims->iat);
+            $issued = date('c', $claims->iat);
+            throw new TokenValidationFailed("Token was issued at $issued, that is more than $idTokenIatSlack seconds in future");
         }
     }
 
