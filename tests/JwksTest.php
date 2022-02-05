@@ -32,7 +32,7 @@ class JwksTest extends TestCase
 
             $jwks = new Jwks();
             $jwks->addPublicKey($publicKey);
-            $fetched = $jwks->getKeyForHeader((object)['alg' => 'EC256']);
+            $fetched = $jwks->getKeyForHeader((object)['alg' => 'ES256']);
 
             $this->assertEquals($publicKey->toString('xml'), $fetched->toString('xml'));
         }
