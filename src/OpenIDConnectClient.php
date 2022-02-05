@@ -1311,14 +1311,9 @@ class OpenIDConnectClient
      * @param string $payload
      * @param string $signature
      * @return bool
-     * @throws OpenIDConnectClientException
      */
     private function verifyHmacJwtSignature(string $hashType, string $key, string $payload, string $signature): bool
     {
-        if (!function_exists('hash_hmac')) {
-            throw new OpenIDConnectClientException('hash_hmac support unavailable.');
-        }
-
         $expected = hash_hmac($hashType, $payload, $key, true);
         return hash_equals($signature, $expected);
     }
