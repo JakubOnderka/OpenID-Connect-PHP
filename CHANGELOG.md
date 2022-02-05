@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 * `addAdditionalJwk` method renamed to `setAdditionalJwks` and now accepts instance of `Jwks` class
 
 ### New
+* Add support for `private_key_jwt` authentication method
 * Allow to pass Authorization token to `register` method
 
 ## [1.0.0-alpha] - 2022-02-03

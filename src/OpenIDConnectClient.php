@@ -641,6 +641,11 @@ class OpenIDConnectClient
     private $clientSecret;
 
     /**
+     * @var PrivateKey|null
+     */
+    private $clientPrivateKey;
+
+    /**
      * @var array<string, mixed> holds the provider configuration
      */
     private $providerConfig = [];
@@ -1245,10 +1250,19 @@ class OpenIDConnectClient
         // PAR, @see https://tools.ietf.org/id/draft-ietf-oauth-par-03.html
         $pushedAuthorizationEndpoint = $this->getProviderConfigValue('pushed_authorization_request_endpoint', false);
         if ($pushedAuthorizationEndpoint) {
-            if ($this->clientSecret) {
+            if ($this->clientPrivateKey) {
+                if ($this->clientPrivateKey instanceof EC\PrivateKey) {
+                    $jwt = Jwt::createEcSigned($authParams, $this->clientPrivateKey);
+                } else {
+                    $jwt = Jwt::createRsaSigned($authParams, 'RS256', $this->clientPrivateKey);
+                }
+                $authParams = [
+                    'request' => (string)$jwt,
+                ];
+            } elseif ($this->clientSecret) {
                 // Send as signed JWT to remote server when client secret is set
                 $authParams = [
-                    'request' => (string)Jwt::createHmacSigned($authParams, 'HS256', $this->clientSecret)
+                    'request' => (string)Jwt::createHmacSigned($authParams, 'HS256', $this->clientSecret),
                 ];
             }
             $response = $this->endpointRequest($authParams, 'pushed_authorization_request');
@@ -2176,6 +2190,18 @@ class OpenIDConnectClient
     }
 
     /**
+     * @param PrivateKey $privateKey
+     * @return void
+     */
+    public function setClientPrivateKey(PrivateKey $privateKey)
+    {
+        if (!$privateKey instanceof EC\PrivateKey && !$privateKey instanceof RSA\PrivateKey) {
+            throw new \InvalidArgumentException("Private key must be RSA or EC");
+        }
+        $this->clientPrivateKey = $privateKey;
+    }
+
+    /**
      * @param string $providerUrl
      * @return void
      */
@@ -2286,11 +2312,8 @@ class OpenIDConnectClient
      */
     public function setAuthenticationMethod($authenticationMethod)
     {
-        if ($authenticationMethod === 'private_key_jwt') {
-            throw new \InvalidArgumentException("Authentication method `private_key_jwt` is not supported");
-        }
-
-        if ($authenticationMethod !== null && !in_array($authenticationMethod, ['client_secret_post', 'client_secret_basic', 'client_secret_jwt'])) {
+        $supportedMethods = ['client_secret_post', 'client_secret_basic', 'client_secret_jwt', 'private_key_jwt'];
+        if ($authenticationMethod !== null && !in_array($authenticationMethod, $supportedMethods, true)) {
             throw new \InvalidArgumentException("Unknown authentication method `$authenticationMethod` provided.");
         }
 
@@ -2525,16 +2548,29 @@ class OpenIDConnectClient
         $headers = ['Accept: application/json'];
 
         // See https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication
-        if ($this->authenticationMethod === 'client_secret_jwt') {
+        if ($this->authenticationMethod === 'client_secret_jwt' || $this->authenticationMethod === 'private_key_jwt') {
             $time = time();
-            $jwt = Jwt::createHmacSigned([
+            $tokenPayload = [
                 'iss' => $this->clientID,
                 'sub' => $this->clientID,
                 'aud' => $this->getProviderConfigValue("token_endpoint"), // audience should be all the time token_endpoint
                 'jti' => $this->generateRandString(),
                 'exp' => $time + $this->timeOut,
                 'iat' => $time,
-            ], 'HS256', $this->clientSecret);
+            ];
+
+            if ($this->authenticationMethod === 'private_key_jwt') {
+                if (!$this->clientPrivateKey) {
+                    throw new OpenIDConnectClientException("Authentication method is set to `private_key_jwt`, but private key is not set");
+                }
+                if ($this->clientPrivateKey instanceof EC\PrivateKey) {
+                    $jwt = Jwt::createEcSigned($tokenPayload, $this->clientPrivateKey);
+                } else {
+                    $jwt = Jwt::createRsaSigned($tokenPayload, 'RS256', $this->clientPrivateKey);
+                }
+            } else {
+                $jwt = Jwt::createHmacSigned($tokenPayload, 'HS256', $this->clientSecret);
+            }
 
             $params['client_assertion_type'] = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
             $params['client_assertion'] = (string)$jwt;

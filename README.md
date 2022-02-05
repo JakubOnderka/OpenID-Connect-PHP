@@ -14,7 +14,7 @@ this fork. This fork requires PHP 7.0 or greater, if you need to use older PHP v
 **Most important changes:**
 
 * Added support for elliptic curve (EC) JWT token signature algorithms, that are faster than RSA signatures
-* Added support for `client_secret_jwt` authentication method to token endpoint, that is more secure that traditional method
+* Added support for `client_secret_jwt` and `private_key_jwt` authentication methods to token endpoint, that are more secure that traditional method
 * JWT ID Token Validation compliant to OpenID Connect standard
 * Much higher code coverage by unit tests
 * A lot of small optimisations and fixes
