@@ -1247,22 +1247,22 @@ class OpenIDConnectClient
             ]);
         }
 
-        // PAR, @see https://tools.ietf.org/id/draft-ietf-oauth-par-03.html
+        // PAR, @see https://datatracker.ietf.org/doc/html/rfc9126
         $pushedAuthorizationEndpoint = $this->getProviderConfigValue('pushed_authorization_request_endpoint', false);
         if ($pushedAuthorizationEndpoint) {
-            if ($this->clientPrivateKey) {
+            if ($this->clientPrivateKey || $this->clientSecret) {
+                // Send as signed JWT to remote server when client secret or private key is set
+                // @see https://datatracker.ietf.org/doc/html/rfc9101
                 if ($this->clientPrivateKey instanceof EC\PrivateKey) {
                     $jwt = Jwt::createEcSigned($authParams, $this->clientPrivateKey);
-                } else {
+                } elseif ($this->clientPrivateKey) {
                     $jwt = Jwt::createRsaSigned($authParams, 'RS256', $this->clientPrivateKey);
+                } else {
+                    $jwt = Jwt::createHmacSigned($authParams, 'HS256', $this->clientSecret);
                 }
                 $authParams = [
                     'request' => (string)$jwt,
-                ];
-            } elseif ($this->clientSecret) {
-                // Send as signed JWT to remote server when client secret is set
-                $authParams = [
-                    'request' => (string)Jwt::createHmacSigned($authParams, 'HS256', $this->clientSecret),
+                    'client_id' => $this->clientID,
                 ];
             }
             $response = $this->endpointRequest($authParams, 'pushed_authorization_request');

@@ -298,18 +298,19 @@ class OpenIDConnectClientTest extends TestCase
             ->getMock();
         $client->method('commitSession')->willReturn(true);
 
-        $client->method('fetchURL')
+        $client->expects($this->once())->method('fetchURL')
             ->with(
                 $this->equalTo('https://example.com/par'),
                 $this->callback(function (array $value) use ($client): bool {
                     $this->assertArrayHasKey('request', $value);
+                    $this->assertEquals('id', $value['client_id']);
                     $this->assertTrue($client->verifyJwtSignature(new Jwt($value['request'])));
                     return true;
                 })
             )
             ->willReturn(new CurlResponse('{"request_uri":"urn:ietf:params:oauth:request_uri:bwc4JK-ESC0w8acc191e-Y1LTC2"}'));
 
-        $client->method('redirect')->with(
+        $client->expects($this->once())->method('redirect')->with(
             $this->callback(function (string $value): bool {
                 $parsed = parse_url($value);
                 parse_str($parsed['query'], $query);
