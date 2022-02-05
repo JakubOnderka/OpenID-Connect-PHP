@@ -28,7 +28,7 @@ declare(strict_types=1);
 
 namespace JakubOnderka;
 
-use phpseclib3\Crypt\Common\AsymmetricKey;
+use phpseclib3\Crypt\Common\PublicKey;
 use phpseclib3\Crypt\EC;
 use phpseclib3\Crypt\EC\Curves;
 use phpseclib3\Crypt\RSA;
@@ -215,8 +215,9 @@ class CurlResponse
 
 /**
  * JSON Web Key Set
+ * @see https://datatracker.ietf.org/doc/html/rfc7517
  */
-class Jwks
+class Jwks implements \JsonSerializable
 {
     /**
      * @var array<\stdClass>
@@ -226,15 +227,69 @@ class Jwks
     /**
      * @param array<\stdClass> $keys
      */
-    public function __construct(array $keys)
+    public function __construct(array $keys = [])
     {
         $this->keys = $keys;
     }
 
     /**
+     * @param PublicKey $publicKey
+     * @param string|null $kid
+     * @param string|null $use Can be 'sig' for signing or 'enc' for encryption
+     * @return void
+     */
+    public function addPublicKey(PublicKey $publicKey, string $kid = null, string $use = null)
+    {
+        if ($publicKey instanceof EC) {
+            switch ($publicKey->getCurve()) {
+                case 'secp256r1':
+                    $crv = 'P-256';
+                    break;
+                case 'secp384r1':
+                    $crv = 'P-384';
+                    break;
+                case 'secp521r1':
+                    $crv = 'P-521';
+                    break;
+                default:
+                    throw new \InvalidArgumentException("Unsupported curve {$publicKey->getCurve()}");
+            }
+
+            $coordinates = substr($publicKey->getEncodedCoordinates(), 1);
+            $half = strlen($coordinates) / 2;
+
+            $output = [
+                'kty' => 'EC',
+                'crv' => $crv,
+                'x' => base64url_encode(substr($coordinates, 0, $half)),
+                'y' => base64url_encode(substr($coordinates, $half)),
+            ];
+        } elseif ($publicKey instanceof RSA) {
+            /** @var array $raw */
+            $raw = $publicKey->toString('raw');
+            $output = [
+                'kty' => 'RSA',
+                'n' => base64url_encode($raw['n']->toBytes()),
+                'e' => base64url_encode($raw['e']->toBytes()),
+            ];
+        } else {
+            throw new \InvalidArgumentException("Unsupported public key type " . get_class($publicKey));
+        }
+
+        if ($kid) {
+            $output['kid'] = $kid;
+        }
+        if ($use) {
+            $output['use'] = $use;
+        }
+
+        $this->keys[] = (object)$output;
+    }
+
+    /**
      * @throws OpenIDConnectClientException
      */
-    public function getKeyForHeader(\stdClass $header): AsymmetricKey
+    public function getKeyForHeader(\stdClass $header): PublicKey
     {
         if (!isset($header->alg)) {
             throw new OpenIDConnectClientException("Malformed JWT token header, `alg` field is missing");
@@ -245,11 +300,11 @@ class Jwks
         foreach ($this->keys as $key) {
             if ($key->kty === $keyType) {
                 if (!isset($header->kid) || $key->kid === $header->kid) {
-                    return $this->convertJwtToAsymmetricKey($key);
+                    return $this->convertJwtToPublicKey($key);
                 }
             } else {
                 if (isset($key->alg) && isset($key->kid) && $key->alg === $header->alg && $key->kid === $header->kid) {
-                    return $this->convertJwtToAsymmetricKey($key);
+                    return $this->convertJwtToPublicKey($key);
                 }
             }
         }
@@ -261,10 +316,10 @@ class Jwks
 
     /**
      * @param \stdClass $key
-     * @return AsymmetricKey
+     * @return PublicKey
      * @throws OpenIDConnectClientException
      */
-    private function convertJwtToAsymmetricKey(\stdClass $key): AsymmetricKey
+    private function convertJwtToPublicKey(\stdClass $key): PublicKey
     {
         if (!isset($key->kty)) {
             throw new OpenIDConnectClientException("Malformed key object, `kty` field is missing");
@@ -276,7 +331,7 @@ class Jwks
             }
 
             EC::addFileFormat(JwkEcFormat::class);
-            return EC::load($key);
+            return EC::loadPublicKey($key);
         } elseif ($key->kty === 'RSA') {
             if (!isset($key->n) || !isset($key->e)) {
                 throw new OpenIDConnectClientException('Malformed RSA key object');
@@ -289,7 +344,7 @@ class Jwks
                 'modulus' => $modulus,
                 'exponent' => $exponent,
             ];
-            return RSA::load($publicKeyRaw);
+            return RSA::loadPublicKey($publicKeyRaw);
         }
         throw new OpenIDConnectClientException("Not supported key type $key->kty");
     }
@@ -306,6 +361,14 @@ class Jwks
             unset($key->{'x5t#S256'});
         }
         return ['keys'];
+    }
+
+    /**
+     * @return array[]
+     */
+    public function jsonSerialize(): array
+    {
+        return ['keys' => $this->keys];
     }
 }
 
@@ -575,9 +638,9 @@ class OpenIDConnectClient
     private $jwks;
 
     /**
-     * @var array<\stdClass> holds response types
+     * @var Jwks|null holds response types
      */
-    private $additionalJwks = [];
+    private $additionalJwks;
 
     /**
      * @var \Closure validator function for issuer claim
@@ -827,11 +890,11 @@ class OpenIDConnectClient
 
     /**
      * Add additional JSON Web Key, that will append to keys fetched from remote server
-     * @param \stdClass $jwk - example: (object) ['kid' => ..., 'nbf' => ..., 'use' => 'sig', 'kty' => "RSA", 'e' => "", 'n' => ""]
+     * @param Jwks $jwks
      */
-    protected function addAdditionalJwk(\stdClass $jwk)
+    protected function setAdditionalJwks(Jwks $jwks)
     {
-        $this->additionalJwks[] = $jwk;
+        $this->additionalJwks = $jwks;
     }
 
     /**
@@ -1227,11 +1290,11 @@ class OpenIDConnectClient
 
     /**
      * @param \stdClass $header
-     * @return AsymmetricKey
+     * @return PublicKey
      * @throws OpenIDConnectClientException
      * @throws JsonException
      */
-    private function fetchKeyForHeader(\stdClass $header): AsymmetricKey
+    private function fetchKeyForHeader(\stdClass $header): PublicKey
     {
         if ($this->jwks) {
             try {
@@ -1278,20 +1341,24 @@ class OpenIDConnectClient
             return $jwks->getKeyForHeader($header);
         } catch (OpenIDConnectClientException $e) {
             // No key found, try to check additionalJwks as last option
-            return (new Jwks($this->additionalJwks))->getKeyForHeader($header);
+            if ($this->additionalJwks) {
+                return $this->additionalJwks->getKeyForHeader($header);
+            } else {
+                throw $e;
+            }
         }
     }
 
     /**
      * @param string $hashType
-     * @param RSA $key
+     * @param RSA\PublicKey $key
      * @param string $payload
      * @param string $signature
      * @param bool $isPss
      * @return bool
      * @throws OpenIDConnectClientException
      */
-    private function verifyRsaJwtSignature(string $hashType, RSA $key, string $payload, string $signature, bool $isPss): bool
+    private function verifyRsaJwtSignature(string $hashType, RSA\PublicKey $key, string $payload, string $signature, bool $isPss): bool
     {
         $rsa = $key->withHash($hashType);
         if ($isPss) {
@@ -1318,13 +1385,13 @@ class OpenIDConnectClient
 
     /**
      * @param string $hashType
-     * @param EC $ec
+     * @param EC\PublicKey $ec
      * @param string $payload
      * @param string $signature
      * @return bool
      * @throws OpenIDConnectClientException
      */
-    private function verifyEcJwtSignature(string $hashType, EC $ec, string $payload, string $signature): bool
+    private function verifyEcJwtSignature(string $hashType, EC\PublicKey $ec, string $payload, string $signature): bool
     {
         $half = strlen($signature) / 2;
         if (!is_int($half)) {

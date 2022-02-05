@@ -23,4 +23,30 @@ class JwksTest extends TestCase
 
         $this->assertEquals($key, $keyNew);
     }
+
+    public function testAdd()
+    {
+        foreach (['nistp256', 'nistp384', 'nistp521'] as $type) {
+            $privateKey = \phpseclib3\Crypt\EC::createKey($type);
+            $publicKey = $privateKey->getPublicKey();
+
+            $jwks = new Jwks();
+            $jwks->addPublicKey($publicKey);
+            $fetched = $jwks->getKeyForHeader((object)['alg' => 'EC256']);
+
+            $this->assertEquals($publicKey->toString('xml'), $fetched->toString('xml'));
+        }
+
+        foreach ([2048, 3072, 4096] as $type) {
+            /** @var \phpseclib3\Crypt\RSA\PrivateKey $privateKey */
+            $privateKey = \phpseclib3\Crypt\RSA\PrivateKey::createKey($type);
+            $publicKey = $privateKey->getPublicKey();
+
+            $jwks = new Jwks();
+            $jwks->addPublicKey($publicKey);
+            $fetched = $jwks->getKeyForHeader((object)['alg' => 'RS256']);
+
+            $this->assertEquals($publicKey->toString('xml'), $fetched->toString('xml'));
+        }
+    }
 }

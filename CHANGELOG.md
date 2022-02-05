@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### BC
 * `verifyAndValidateLogoutToken` and `verifyJwtSignature` public methods now require instance of `Jwt` class
+* `addAdditionalJwk` method renamed to `setAdditionalJwks` and now accepts instance of `Jwks` class
 
 ### New
 * Allow to pass Authorization token to `register` method
