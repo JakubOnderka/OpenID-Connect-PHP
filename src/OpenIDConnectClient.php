@@ -1669,11 +1669,12 @@ class OpenIDConnectClient
      *
      * @see https://openid.net/specs/openid-connect-registration-1_0.html
      * @param string $clientName
+     * @param string $authorization Authorization Bearer token
      * @return \stdClass Decoded response
      * @throws OpenIDConnectClientException
      * @throws JsonException
      */
-    public function register(string $clientName): \stdClass
+    public function register(string $clientName, string $authorization = null): \stdClass
     {
         $registrationEndpoint = $this->getProviderConfigValue('registration_endpoint');
 
@@ -1682,7 +1683,12 @@ class OpenIDConnectClient
             'client_name' => $clientName,
         ]);
 
-        $response = $this->fetchURL($registrationEndpoint, Json::encode($postBody), ['Content-Type: application/json']);
+        $headers = ['Content-Type: application/json'];
+        if ($authorization) {
+            $headers[] = "Authorization: Bearer $authorization";
+        }
+
+        $response = $this->fetchURL($registrationEndpoint, Json::encode($postBody), $headers);
 
         try {
             $decoded = $response->json(true);
