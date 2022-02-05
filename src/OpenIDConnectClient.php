@@ -28,6 +28,7 @@ declare(strict_types=1);
 
 namespace JakubOnderka;
 
+use phpseclib3\Crypt\Common\PrivateKey;
 use phpseclib3\Crypt\Common\PublicKey;
 use phpseclib3\Crypt\EC;
 use phpseclib3\Crypt\EC\Curves;
@@ -492,6 +493,8 @@ class Jwt
     }
 
     /**
+     * Create JWT signed by provided shared secret
+     *
      * @param array<string, mixed> $payload
      * @param string $hashAlg
      * @param string $secret
@@ -508,6 +511,66 @@ class Jwt
         $payload = base64url_encode(Json::encode($payload));
         $hmac = hash_hmac('sha' . substr($hashAlg, 2), "$header.$payload", $secret, true);
         $signature = base64url_encode($hmac);
+        return new Jwt("$header.$payload.$signature");
+    }
+
+    /**
+     * Create JWT signed by provided private RSA (RS* or PS* algs) or elliptic curve  (ES* algs) key
+     *
+     * @param array $payload
+     * @param string $alg
+     * @param PrivateKey $privateKey
+     * @param string|null $kid Key ID
+     * @return Jwt
+     * @throws JsonException
+     */
+    public static function createPrivateKeySigned(array $payload, string $alg, PrivateKey $privateKey, string $kid = null): Jwt
+    {
+        if (!in_array($alg, ['ES256', 'ES384', 'ES512', 'RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512'], true)) {
+            throw new \InvalidArgumentException("Invalid JWT signature algorithm $alg");
+        }
+
+        $header = [
+            'alg' => $alg,
+            'typ' => 'JWT',
+        ];
+        if ($kid) {
+            $header['kid'] = $kid;
+        }
+
+        $header = base64url_encode(Json::encode($header));
+        $payload = base64url_encode(Json::encode($payload));
+
+        $hashType = 'sha' . substr($alg, 2, 3);
+        if ($privateKey instanceof EC\PrivateKey) {
+            if ($alg[0] !== 'E') {
+                throw new \InvalidArgumentException("Invalid key provided for $alg algo");
+            }
+
+            $signature = $privateKey
+                ->withHash($hashType)
+                ->withSignatureFormat('raw')
+                ->sign("$header.$payload");
+            $signature = $signature['r']->toBytes() . $signature['s']->toBytes();
+        } elseif ($privateKey instanceof RSA\PrivateKey) {
+            if ($alg[0] !== 'R' && $alg[0] !== 'P') {
+                throw new \InvalidArgumentException("Invalid key provided for $alg algo");
+            }
+
+            $privateKey->withHash($hashType);
+            $isPss = $alg[0] === 'P';
+            if ($isPss) {
+                $privateKey = $privateKey->withMGFHash($hashType)
+                    ->withPadding(RSA::SIGNATURE_PSS);
+            } else {
+                $privateKey = $privateKey->withPadding(RSA::SIGNATURE_PKCS1);
+            }
+            $signature = $privateKey->sign("$header.$payload");
+        } else {
+            throw new \InvalidArgumentException("Invalid key provided");
+        }
+
+        $signature = base64url_encode($signature);
         return new Jwt("$header.$payload.$signature");
     }
 }
@@ -1248,11 +1311,11 @@ class OpenIDConnectClient
 
             $tokenEndpoint = $this->getProviderConfigValue('token_endpoint');
             $response = $this->fetchURL($tokenEndpoint, $tokenParams)->json(true);
-        }
 
-        if (isset($response->error)) {
-            // @phpstan-ignore-next-line phpstan bug #6026
-            throw new ErrorResponse($response->error, $response->error_description ?? null);
+            if (isset($response->error)) {
+                // @phpstan-ignore-next-line phpstan bug #6026
+                throw new ErrorResponse($response->error, $response->error_description ?? null);
+            }
         }
 
         $this->tokenResponse = $response;
