@@ -245,12 +245,15 @@ class Jwks implements \JsonSerializable
             switch ($publicKey->getCurve()) {
                 case 'secp256r1':
                     $crv = 'P-256';
+                    $alg = 'ES256';
                     break;
                 case 'secp384r1':
                     $crv = 'P-384';
+                    $alg = 'ES384';
                     break;
                 case 'secp521r1':
                     $crv = 'P-521';
+                    $alg = 'ES512';
                     break;
                 default:
                     throw new \InvalidArgumentException("Unsupported curve {$publicKey->getCurve()}");
@@ -262,6 +265,7 @@ class Jwks implements \JsonSerializable
             $output = [
                 'kty' => 'EC',
                 'crv' => $crv,
+                'alg' => $alg,
                 'x' => base64url_encode(substr($coordinates, 0, $half)),
                 'y' => base64url_encode(substr($coordinates, $half)),
             ];
