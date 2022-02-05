@@ -1227,7 +1227,7 @@ class OpenIDConnectClient
         }
 
         // If the client supports Proof Key for Code Exchange (PKCE)
-        $ccm = $this->getCodeChallengeMethod();
+        $ccm = $this->codeChallengeMethod;
         if (!empty($ccm)) {
             if (!in_array($ccm, $this->getProviderConfigValue('code_challenge_methods_supported'), true)) {
                 throw new OpenIDConnectClientException("Unsupported code challenge method by IdP");
@@ -1344,10 +1344,7 @@ class OpenIDConnectClient
             'redirect_uri' => $this->getRedirectURL(),
         ];
 
-        $ccm = $this->getCodeChallengeMethod();
-        if (empty($ccm)) {
-            $response = $this->endpointRequest($tokenParams);
-        } else {
+        if (!empty($this->codeChallengeMethod)) {
             $cv = $this->getSessionKey(self::CODE_VERIFIER);
             if (empty($cv)) {
                 throw new OpenIDConnectClientException("Code verifier from session is empty");
@@ -1357,7 +1354,10 @@ class OpenIDConnectClient
                 'client_id' => $this->clientID,
                 'code_verifier' => $cv,
             ]);
+        }
 
+        if ($this->allowImplicitFlow) {
+            // For implicit flow, we don't have client secret required for authentization
             $tokenEndpoint = $this->getProviderConfigValue('token_endpoint');
             $response = $this->fetchURL($tokenEndpoint, $tokenParams)->json(true);
 
@@ -1365,6 +1365,8 @@ class OpenIDConnectClient
                 // @phpstan-ignore-next-line phpstan bug #6026
                 throw new ErrorResponse($response->error, $response->error_description ?? null);
             }
+        } else {
+            $response = $this->endpointRequest($tokenParams);
         }
 
         $this->tokenResponse = $response;

@@ -445,7 +445,7 @@ class OpenIDConnectClientTest extends TestCase
         $this->assertEquals("https://example.com", $client->getWellKnownIssuer());
     }
 
-    public function testRequestTokensClientSecretBasic()
+    public function testRequestTokens_clientSecretBasic()
     {
         $this->cleanup();
 
@@ -585,6 +585,36 @@ class OpenIDConnectClientTest extends TestCase
         $this->assertEquals('John Doe', $client->getVerifiedClaims()->name);
         $this->assertEquals('John Doe', $client->getVerifiedClaims('name'));
         $this->assertNull($client->getVerifiedClaims('unknwon'));
+    }
+
+    public function testRequestTokens_codeChallengeMethod()
+    {
+        $this->cleanup();
+
+        $_REQUEST['code'] = 'code';
+        $_REQUEST['state'] = 'state';
+        $_SESSION['openid_connect_state'] = 'state';
+        $_SESSION['openid_connect_code_verifier'] = 'verifier';
+
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL', 'verifyJwtSignature', 'validateIdToken'])->getMock();
+        $client->method('verifyJwtSignature')->willReturn(true);
+        $client->method('validateIdToken')->willReturn(true);
+        $client->setClientID('client-id');
+        $client->setClientSecret('client-secret');
+        $client->setCodeChallengeMethod('S256');
+        $client->providerConfigParam([
+            'token_endpoint' => 'https://example.com',
+            'token_endpoint_auth_methods_supported' => ['client_secret_post'],
+        ]);
+        $client->method('fetchURL')
+            ->with($this->equalTo('https://example.com'), $this->callback(function (array $post): bool {
+                $this->assertEquals('authorization_code', $post['grant_type']);
+                $this->assertEquals('code', $post['code']);
+                $this->assertEquals('client-id', $post['client_id']);
+                $this->assertEquals('verifier', $post['code_verifier']);
+                return true;
+            }))->willReturn($this->authorizationCodeResponse());
+        $this->assertTrue($client->authenticate());
     }
 
     private function authorizationCodeResponse(): CurlResponse
