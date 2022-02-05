@@ -1684,7 +1684,7 @@ class OpenIDConnectClient
             'client_name' => $clientName,
         ]);
 
-        $response = $this->fetchURL($registrationEndpoint, Json::encode($postBody));
+        $response = $this->fetchURL($registrationEndpoint, Json::encode($postBody), ['Content-Type: application/json']);
 
         try {
             $decoded = $response->json(true);
@@ -2245,23 +2245,19 @@ class OpenIDConnectClient
 
         // Determine whether this is a GET or POST
         if ($postBody !== null) {
-            // Determine if this is a JSON payload and add the appropriate content type
+            // Add the appropriate content type header if $postBody is array, for string request it is necessary to add
+            // that content header by user
             if (is_array($postBody)) {
-                $contentType = 'application/x-www-form-urlencoded';
+                $headers[] = "Content-Type: application/x-www-form-urlencoded";
                 $postBody = http_build_query($postBody, '', '&', $this->encType);
-            } elseif (is_string($postBody) && is_object(json_decode($postBody))) {
-                $contentType = 'application/json';
-            } else {
-                throw new \InvalidArgumentException("Invalid type for postBody, expected array, JSON string or null value");
+            } elseif (!is_string($postBody)) {
+                throw new \InvalidArgumentException("Invalid type for post body, expected array, string or null value");
             }
 
             // curl_setopt($this->ch, CURLOPT_POST, 1);
             // Allows to keep the POST method even after redirect
             $options[CURLOPT_CUSTOMREQUEST] = 'POST';
             $options[CURLOPT_POSTFIELDS] = $postBody;
-
-            // Add POST-specific headers
-            $headers[] = "Content-Type: $contentType";
         } else {
             // Enable response compression for GET requests
             $options[CURLOPT_ENCODING] = "";
