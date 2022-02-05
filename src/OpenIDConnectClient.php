@@ -163,11 +163,9 @@ class ErrorResponse extends OpenIDConnectClientException
     {
         $this->error = $error;
 
-        $message = "Error received from IdP: ";
+        $message = "Error '$error' received from IdP";
         if ($description) {
-            $message .= $description . " (error $error)";
-        } else {
-            $message .= $error;
+            $message .= ': ' . $description;
         }
         parent::__construct($message, 0, $previous);
     }
