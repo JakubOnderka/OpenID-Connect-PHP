@@ -2499,6 +2499,10 @@ class OpenIDConnectClient
             throw new \InvalidArgumentException("Invalid endpoint name provided");
         }
 
+        if (empty($this->clientID)) {
+            throw new OpenIDConnectClientException("Client ID is required, but not set");
+        }
+
         $endpoint = $this->getProviderConfigValue("{$endpointName}_endpoint");
 
         /*
