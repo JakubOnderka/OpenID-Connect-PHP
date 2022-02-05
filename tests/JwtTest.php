@@ -36,13 +36,13 @@ class JwtTest extends TestCase
          $jwtDecoded->signature();
     }
 
-    public function testCreatePrivateKeySigned_ec()
+    public function testCreateEcSigned()
     {
         $privateKey = \phpseclib3\Crypt\EC::createKey('nistp256');
 
-        $jwt = Jwt::createPrivateKeySigned([
+        $jwt = Jwt::createEcSigned([
             'ahoj' => 'světe', // unicode
-        ], 'ES256', $privateKey);
+        ], $privateKey);
 
         $jwtDecoded = new Jwt((string)$jwt);
         $this->assertEquals('ES256', $jwtDecoded->header()->alg);
@@ -64,11 +64,12 @@ class JwtTest extends TestCase
         $this->assertTrue($valid);
     }
 
-    public function testCreatePrivateKeySigned_rsa()
+    public function testCreateRsaSigned()
     {
+        /** @var RSA\PrivateKey $privateKey */
         $privateKey = \phpseclib3\Crypt\RSA::createKey();
 
-        $jwt = Jwt::createPrivateKeySigned([
+        $jwt = Jwt::createRsaSigned([
             'ahoj' => 'světe', // unicode
         ], 'RS256', $privateKey);
 

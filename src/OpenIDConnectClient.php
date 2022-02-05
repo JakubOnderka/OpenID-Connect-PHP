@@ -519,18 +519,66 @@ class Jwt
     }
 
     /**
-     * Create JWT signed by provided private RSA (RS* or PS* algs) or elliptic curve  (ES* algs) key
+     * Create JWT signed by provided private elliptic curve private key. Algo will be chosen according to private key.
+     *
+     * @param array $payload
+     * @param EC\PrivateKey $privateKey
+     * @param string|null $kid
+     * @return Jwt
+     * @throws JsonException
+     */
+    public static function createEcSigned(array $payload, EC\PrivateKey $privateKey, string $kid = null)
+    {
+        switch ($privateKey->getCurve()) {
+            case 'secp256r1':
+                $hashType = 'sha256';
+                $alg = 'ES256';
+                break;
+            case 'secp384r1':
+                $hashType = 'sha384';
+                $alg = 'ES384';
+                break;
+            case 'secp521r1':
+                $hashType = 'sha512';
+                $alg = 'ES512';
+                break;
+            default:
+                throw new \InvalidArgumentException("Unsupported curve {$privateKey->getCurve()}");
+        }
+
+        $header = [
+            'alg' => $alg,
+            'typ' => 'JWT',
+        ];
+        if ($kid) {
+            $header['kid'] = $kid;
+        }
+
+        $header = base64url_encode(Json::encode($header));
+        $payload = base64url_encode(Json::encode($payload));
+
+        $signature = $privateKey
+            ->withHash($hashType)
+            ->withSignatureFormat('raw')
+            ->sign("$header.$payload");
+        $signature = $signature['r']->toBytes() . $signature['s']->toBytes();
+        $signature = base64url_encode($signature);
+        return new Jwt("$header.$payload.$signature");
+    }
+
+    /**
+     * Create JWT signed by provided private RSA (RS* or PS* algs)
      *
      * @param array $payload
      * @param string $alg
-     * @param PrivateKey $privateKey
+     * @param RSA\PrivateKey $privateKey
      * @param string|null $kid Key ID
      * @return Jwt
      * @throws JsonException
      */
-    public static function createPrivateKeySigned(array $payload, string $alg, PrivateKey $privateKey, string $kid = null): Jwt
+    public static function createRsaSigned(array $payload, string $alg, RSA\PrivateKey $privateKey, string $kid = null): Jwt
     {
-        if (!in_array($alg, ['ES256', 'ES384', 'ES512', 'RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512'], true)) {
+        if (!in_array($alg, ['RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512'], true)) {
             throw new \InvalidArgumentException("Invalid JWT signature algorithm $alg");
         }
 
@@ -546,33 +594,16 @@ class Jwt
         $payload = base64url_encode(Json::encode($payload));
 
         $hashType = 'sha' . substr($alg, 2, 3);
-        if ($privateKey instanceof EC\PrivateKey) {
-            if ($alg[0] !== 'E') {
-                throw new \InvalidArgumentException("Invalid key provided for $alg algo");
-            }
+        $privateKey->withHash($hashType);
 
-            $signature = $privateKey
-                ->withHash($hashType)
-                ->withSignatureFormat('raw')
-                ->sign("$header.$payload");
-            $signature = $signature['r']->toBytes() . $signature['s']->toBytes();
-        } elseif ($privateKey instanceof RSA\PrivateKey) {
-            if ($alg[0] !== 'R' && $alg[0] !== 'P') {
-                throw new \InvalidArgumentException("Invalid key provided for $alg algo");
-            }
-
-            $privateKey->withHash($hashType);
-            $isPss = $alg[0] === 'P';
-            if ($isPss) {
-                $privateKey = $privateKey->withMGFHash($hashType)
-                    ->withPadding(RSA::SIGNATURE_PSS);
-            } else {
-                $privateKey = $privateKey->withPadding(RSA::SIGNATURE_PKCS1);
-            }
-            $signature = $privateKey->sign("$header.$payload");
+        $isPss = $alg[0] === 'P';
+        if ($isPss) {
+            $privateKey = $privateKey->withMGFHash($hashType)
+                ->withPadding(RSA::SIGNATURE_PSS);
         } else {
-            throw new \InvalidArgumentException("Invalid key provided");
+            $privateKey = $privateKey->withPadding(RSA::SIGNATURE_PKCS1);
         }
+        $signature = $privateKey->sign("$header.$payload");
 
         $signature = base64url_encode($signature);
         return new Jwt("$header.$payload.$signature");
