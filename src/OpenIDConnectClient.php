@@ -956,11 +956,7 @@ class OpenIDConnectClient
             $signoutParams['post_logout_redirect_uri'] = $redirect;
         }
 
-        $endSessionEndpoint = $this->getProviderConfigValue('end_session_endpoint');
-        $endSessionEndpoint .= strpos($endSessionEndpoint, '?') === false ? '?' : '&';
-        $endSessionEndpoint .= http_build_query($signoutParams, '', '&', $this->encType);
-
-        $this->redirect($endSessionEndpoint);
+        $this->redirectToEndpoint('end_session_endpoint', $signoutParams);
     }
 
     /**
@@ -1272,13 +1268,8 @@ class OpenIDConnectClient
             }
         }
 
-        $authEndpoint = $this->getProviderConfigValue('authorization_endpoint');
-        // If auth endpoint already contains params, just append &
-        $authEndpoint .= strpos($authEndpoint, '?') === false ? '?' : '&';
-        $authEndpoint .= http_build_query($authParams, '', '&', $this->encType);
-
         $this->commitSession();
-        $this->redirect($authEndpoint);
+        $this->redirectToEndpoint('authorization_endpoint', $authParams);
     }
 
     /**
@@ -1355,7 +1346,7 @@ class OpenIDConnectClient
         }
 
         if ($this->allowImplicitFlow) {
-            // For implicit flow, we don't have client secret required for authentization
+            // For implicit flow, we don't have client secret required for authentication
             $tokenEndpoint = $this->getProviderConfigValue('token_endpoint');
             $response = $this->fetchURL($tokenEndpoint, $tokenParams)->json(true);
 
@@ -1363,11 +1354,10 @@ class OpenIDConnectClient
                 // @phpstan-ignore-next-line phpstan bug #6026
                 throw new ErrorResponse($response->error, $response->error_description ?? null);
             }
-        } else {
-            $response = $this->endpointRequest($tokenParams);
+            return $response;
         }
 
-        return $response;
+        return $this->endpointRequest($tokenParams);
     }
 
     /**
@@ -2613,7 +2603,23 @@ class OpenIDConnectClient
     }
 
     /**
-     * Redirect to given URL and exit
+     * Redirect to given endpoint and params and exit
+     *
+     * @param string $endpointName
+     * @param array $params
+     * @return void
+     * @throws JsonException
+     * @throws OpenIDConnectClientException
+     */
+    protected function redirectToEndpoint(string $endpointName, array $params)
+    {
+        $url = $this->getProviderConfigValue($endpointName);
+        $url .= strpos($url, '?') === false ? '?' : '&';
+        $url .= http_build_query($params, '', '&', $this->encType);
+        $this->redirect($url);
+    }
+
+    /**
      * @param string $url
      * @return void
      */
