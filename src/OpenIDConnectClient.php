@@ -1506,9 +1506,11 @@ class OpenIDConnectClient
      */
     private function verifyEcJwtSignature(string $hashType, EC\PublicKey $ec, string $payload, string $signature): bool
     {
+        $expectedHalfSignatureSize = substr($hashType, 3, 3) / 8;
+
         $half = strlen($signature) / 2;
-        if (!is_int($half)) {
-            throw new OpenIDConnectClientException("Signature has invalid length");
+        if ($expectedHalfSignatureSize !== $half) {
+            throw new OpenIDConnectClientException("Signature has invalid length, expected $expectedHalfSignatureSize bytes, got $half");
         }
         $rawSignature = [
             'r' => new BigInteger(substr($signature, 0, $half), 256),
