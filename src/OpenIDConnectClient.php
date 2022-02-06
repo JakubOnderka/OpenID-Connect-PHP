@@ -511,15 +511,14 @@ class Jwt
             throw new \InvalidArgumentException("Invalid JWT signature algorithm $hashAlg");
         }
 
-        $header = base64url_encode('{"alg":"' . $hashAlg . '","typ":"JWT"}');
-        $payload = base64url_encode(Json::encode($payload));
-        $hmac = hash_hmac('sha' . substr($hashAlg, 2), "$header.$payload", $secret, true);
+        $headerAndPayload = self::createHeaderAndPayload($payload, $hashAlg);
+        $hmac = hash_hmac('sha' . substr($hashAlg, 2), $headerAndPayload, $secret, true);
         $signature = base64url_encode($hmac);
-        return new Jwt("$header.$payload.$signature");
+        return new Jwt("$headerAndPayload.$signature");
     }
 
     /**
-     * Create JWT signed by provided private elliptic curve private key. Algo will be chosen according to private key.
+     * Create JWT signed by provided private elliptic curve private key. Algo will be chosen according to private key size.
      *
      * @param array $payload
      * @param EC\PrivateKey $privateKey
@@ -527,47 +526,35 @@ class Jwt
      * @return Jwt
      * @throws JsonException
      */
-    public static function createEcSigned(array $payload, EC\PrivateKey $privateKey, string $kid = null)
+    public static function createEcSigned(array $payload, EC\PrivateKey $privateKey, string $kid = null): Jwt
     {
         switch ($privateKey->getCurve()) {
             case 'secp256r1':
-                $hashType = 'sha256';
-                $alg = 'ES256';
+                $size = '256';
                 break;
             case 'secp384r1':
-                $hashType = 'sha384';
-                $alg = 'ES384';
+                $size = '384';
                 break;
             case 'secp521r1':
-                $hashType = 'sha512';
-                $alg = 'ES512';
+                $size = '512';
                 break;
             default:
                 throw new \InvalidArgumentException("Unsupported curve {$privateKey->getCurve()}");
         }
 
-        $header = [
-            'alg' => $alg,
-            'typ' => 'JWT',
-        ];
-        if ($kid) {
-            $header['kid'] = $kid;
-        }
-
-        $header = base64url_encode(Json::encode($header));
-        $payload = base64url_encode(Json::encode($payload));
+        $headerAndPayload = self::createHeaderAndPayload($payload, "ES$size", $kid);
 
         $signature = $privateKey
-            ->withHash($hashType)
+            ->withHash("sha$size")
             ->withSignatureFormat('raw')
-            ->sign("$header.$payload");
+            ->sign($headerAndPayload);
         $signature = $signature['r']->toBytes() . $signature['s']->toBytes();
         $signature = base64url_encode($signature);
-        return new Jwt("$header.$payload.$signature");
+        return new Jwt("$headerAndPayload.$signature");
     }
 
     /**
-     * Create JWT signed by provided private RSA (RS* or PS* algs)
+     * Create JWT signed by provided private RSA (RS* or PS* algos).
      *
      * @param array $payload
      * @param string $alg
@@ -582,16 +569,7 @@ class Jwt
             throw new \InvalidArgumentException("Invalid JWT signature algorithm $alg");
         }
 
-        $header = [
-            'alg' => $alg,
-            'typ' => 'JWT',
-        ];
-        if ($kid) {
-            $header['kid'] = $kid;
-        }
-
-        $header = base64url_encode(Json::encode($header));
-        $payload = base64url_encode(Json::encode($payload));
+        $headerAndPayload = self::createHeaderAndPayload($payload, $alg, $kid);
 
         $hashType = 'sha' . substr($alg, 2, 3);
         $privateKey->withHash($hashType);
@@ -603,10 +581,30 @@ class Jwt
         } else {
             $privateKey = $privateKey->withPadding(RSA::SIGNATURE_PKCS1);
         }
-        $signature = $privateKey->sign("$header.$payload");
+        $signature = $privateKey->sign($headerAndPayload);
 
         $signature = base64url_encode($signature);
-        return new Jwt("$header.$payload.$signature");
+        return new Jwt("$headerAndPayload.$signature");
+    }
+
+    /**
+     * @param array $payload
+     * @param string $alg
+     * @param string|null $kid
+     * @return string
+     * @throws JsonException
+     */
+    private static function createHeaderAndPayload(array $payload, string $alg, string $kid = null): string
+    {
+        if ($kid) {
+            $header = '{"alg":"' . $alg . '","typ":"JWT","kid":' . Json::encode($kid) . '}';
+        } else {
+            $header = '{"alg":"' . $alg . '","typ":"JWT"}';
+        }
+
+        $header = base64url_encode($header);
+        $payload = base64url_encode(Json::encode($payload));
+        return "$header.$payload";
     }
 }
 
