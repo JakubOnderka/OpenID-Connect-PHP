@@ -39,8 +39,7 @@ class JwtTest extends TestCase
 
     public function testCreateEcSigned()
     {
-        $keys = Json::decode(file_get_contents(__DIR__ . '/data/private_keys.json'));
-        $privateKey = \phpseclib3\Crypt\EC::loadPrivateKey($keys->nistp256);
+        $privateKey = \phpseclib3\Crypt\EC::loadPrivateKey($this->getPrivateKey('nistp256'));
 
         $jwt = Jwt::createEcSigned([
             'ahoj' => 'světe', // unicode
@@ -66,18 +65,38 @@ class JwtTest extends TestCase
         $this->assertTrue($valid);
     }
 
+    public function testCreateEcEdSigned()
+    {
+        $privateKey = \phpseclib3\Crypt\EC::loadPrivateKey($this->getPrivateKey('Ed25519'));
+
+        $jwt = Jwt::createEcSigned([
+            'ahoj' => 'světe', // unicode
+        ], $privateKey);
+
+        $jwtDecoded = new Jwt((string)$jwt);
+        $this->assertEquals('EdDSA', $jwtDecoded->header()->alg);
+        $this->assertEquals('JWT', $jwtDecoded->header()->typ);
+        $this->assertEquals('světe', $jwtDecoded->payload()->ahoj);
+        $signature = $jwtDecoded->signature();
+
+        $valid = $privateKey
+            ->getPublicKey()
+            ->verify($jwtDecoded->withoutSignature(), $signature);
+        $this->assertTrue($valid);
+    }
+
     public function testCreateRsaSigned()
     {
-        $keys = Json::decode(file_get_contents(__DIR__ . '/data/private_keys.json'));
-        $privateKey = \phpseclib3\Crypt\RSA::loadPrivateKey($keys->RSA2048);
+        $privateKey = \phpseclib3\Crypt\RSA::loadPrivateKey($this->getPrivateKey('RSA2048'));
 
         $jwt = Jwt::createRsaSigned([
             'ahoj' => 'světe', // unicode
-        ], 'RS256', $privateKey);
+        ], 'RS256', $privateKey, 'kid');
 
         $jwtDecoded = new Jwt((string)$jwt);
         $this->assertEquals('RS256', $jwtDecoded->header()->alg);
         $this->assertEquals('JWT', $jwtDecoded->header()->typ);
+        $this->assertEquals('kid', $jwtDecoded->header()->kid);
         $this->assertEquals('světe', $jwtDecoded->payload()->ahoj);
         $signature = $jwtDecoded->signature();
 
@@ -87,5 +106,17 @@ class JwtTest extends TestCase
             ->withPadding(RSA::SIGNATURE_PKCS1)
             ->verify($jwtDecoded->withoutSignature(), $signature);
         $this->assertTrue($valid);
+    }
+
+    /**
+     * @throws \JakubOnderka\JsonException
+     */
+    private function getPrivateKey(string $keyType): string
+    {
+        static $keys;
+        if ($keys === null) {
+            $keys = Json::decode(file_get_contents(__DIR__ . '/data/private_keys.json'));
+        }
+        return $keys->{$keyType};
     }
 }

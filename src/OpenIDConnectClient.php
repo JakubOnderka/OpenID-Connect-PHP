@@ -241,35 +241,25 @@ class Jwks implements \JsonSerializable
      */
     public function addPublicKey(PublicKey $publicKey, string $kid = null, string $use = null)
     {
-        if ($publicKey instanceof EC) {
+        if ($publicKey instanceof EC\PublicKey) {
             switch ($publicKey->getCurve()) {
                 case 'secp256r1':
-                    $crv = 'P-256';
-                    $alg = 'ES256';
+                    $output = $this->generateSecpCurveObject($publicKey, 'P-256', 'ES256');
                     break;
                 case 'secp384r1':
-                    $crv = 'P-384';
-                    $alg = 'ES384';
+                    $output = $this->generateSecpCurveObject($publicKey, 'P-384', 'ES384');
                     break;
                 case 'secp521r1':
-                    $crv = 'P-521';
-                    $alg = 'ES512';
+                    $output = $this->generateSecpCurveObject($publicKey, 'P-521', 'ES512');
+                    break;
+                case 'Ed25519':
+                case 'Ed448':
+                    $output = $this->generateEdCurveObject($publicKey);
                     break;
                 default:
                     throw new \InvalidArgumentException("Unsupported curve {$publicKey->getCurve()}");
             }
-
-            $coordinates = substr($publicKey->getEncodedCoordinates(), 1);
-            $half = strlen($coordinates) / 2;
-
-            $output = [
-                'kty' => 'EC',
-                'crv' => $crv,
-                'alg' => $alg,
-                'x' => base64url_encode(substr($coordinates, 0, $half)),
-                'y' => base64url_encode(substr($coordinates, $half)),
-            ];
-        } elseif ($publicKey instanceof RSA) {
+        } elseif ($publicKey instanceof RSA\PublicKey) {
             /** @var array $raw */
             $raw = $publicKey->toString('raw');
             $output = [
@@ -291,6 +281,30 @@ class Jwks implements \JsonSerializable
         $this->keys[] = (object)$output;
     }
 
+    private function generateSecpCurveObject(EC\PublicKey $publicKey, string $crv, string $alg): array
+    {
+        $coordinates = substr($publicKey->getEncodedCoordinates(), 1);
+        $half = strlen($coordinates) / 2;
+
+        return [
+            'kty' => 'EC',
+            'crv' => $crv,
+            'alg' => $alg,
+            'x' => base64url_encode(substr($coordinates, 0, $half)),
+            'y' => base64url_encode(substr($coordinates, $half)),
+        ];
+    }
+
+    private function generateEdCurveObject(EC\PublicKey $publicKey): array
+    {
+        return [
+            'kty' => 'OKP',
+            'crv' => $publicKey->getCurve(),
+            'alg' => 'EdDSA',
+            'x' => base64url_encode($publicKey->getEncodedCoordinates()),
+        ];
+    }
+
     /**
      * @throws OpenIDConnectClientException
      */
@@ -300,7 +314,11 @@ class Jwks implements \JsonSerializable
             throw new OpenIDConnectClientException("Malformed JWT token header, `alg` field is missing");
         }
 
-        $keyType = $header->alg[0] === 'E' ? 'EC' : 'RSA';
+        if ($header->alg === 'EdDSA') {
+            $keyType = 'OKP';
+        } else {
+             $keyType = $header->alg[0] === 'E' ? 'EC' : 'RSA';
+        }
 
         foreach ($this->keys as $key) {
             if ($key->kty === $keyType) {
@@ -333,6 +351,13 @@ class Jwks implements \JsonSerializable
         if ($key->kty === 'EC') {
             if (!isset($key->x) || !isset($key->y) || !isset($key->crv)) {
                 throw new OpenIDConnectClientException('Malformed EC key object');
+            }
+
+            EC::addFileFormat(JwkEcFormat::class);
+            return EC::loadPublicKey($key);
+        } elseif ($key->kty === 'OKP') {
+            if (!isset($key->x) || !isset($key->crv)) {
+                throw new OpenIDConnectClientException('Malformed OKP key object');
             }
 
             EC::addFileFormat(JwkEcFormat::class);
@@ -379,10 +404,12 @@ class Jwks implements \JsonSerializable
 
 abstract class JwkEcFormat
 {
+    use EC\Formats\Keys\Common;
+
     /**
      * @param mixed $key
      * @param string|null $password Not used, only public key supported
-     * @return array{"curve": EC\BaseCurves\Prime, "QA": array}|false
+     * @return array{"curve": EC\BaseCurves\Base, "QA": array}|false
      * @throws \RuntimeException
      */
     public static function load($key, $password)
@@ -393,6 +420,12 @@ abstract class JwkEcFormat
 
         $curve = self::getCurve($key->crv);
 
+        if ($curve instanceof EC\BaseCurves\TwistedEdwards) {
+            $QA = self::extractPoint(base64url_decode($key->x), $curve);
+            return ['curve' => $curve, 'QA' => $QA];
+        }
+
+        /** @var EC\BaseCurves\Prime  $curve */
         $x = new BigInteger(base64url_decode($key->x), 256);
         $y = new BigInteger(base64url_decode($key->y), 256);
 
@@ -409,7 +442,7 @@ abstract class JwkEcFormat
     /**
      * @throws \RuntimeException
      */
-    private static function getCurve(string $curveName): EC\BaseCurves\Prime
+    private static function getCurve(string $curveName): EC\BaseCurves\Base
     {
         switch ($curveName) {
             case 'P-256':
@@ -418,6 +451,10 @@ abstract class JwkEcFormat
                 return new Curves\nistp384();
             case 'P-521':
                 return new Curves\nistp521();
+            case 'Ed25519':
+                return new Curves\Ed25519();
+            case 'Ed448':
+                return new Curves\Ed448();
         }
         throw new \RuntimeException("Unsupported curve $curveName");
     }
@@ -530,25 +567,40 @@ class Jwt
     {
         switch ($privateKey->getCurve()) {
             case 'secp256r1':
-                $size = '256';
+                $hash = 'sha256';
+                $alg = 'ES256';
                 break;
             case 'secp384r1':
-                $size = '384';
+                $hash = 'sha384';
+                $alg = 'ES384';
                 break;
             case 'secp521r1':
-                $size = '512';
+                $hash = 'sha512';
+                $alg = 'ES512';
+                break;
+            case 'Ed25519':
+                $hash = 'sha512';
+                $alg = 'EdDSA';
+                break;
+            case 'Ed448':
+                $hash = 'shake256-912';
+                $alg = 'EdDSA';
                 break;
             default:
                 throw new \InvalidArgumentException("Unsupported curve {$privateKey->getCurve()}");
         }
 
-        $headerAndPayload = self::createHeaderAndPayload($payload, "ES$size", $kid);
+        $headerAndPayload = self::createHeaderAndPayload($payload, $alg, $kid);
 
         $signature = $privateKey
-            ->withHash("sha$size")
+            ->withHash($hash)
             ->withSignatureFormat('raw')
             ->sign($headerAndPayload);
-        $signature = $signature['r']->toBytes() . $signature['s']->toBytes();
+
+        if (is_array($signature)) {
+            // secp curves signature result is array
+            $signature = $signature['r']->toBytes() . $signature['s']->toBytes();
+        }
         $signature = base64url_encode($signature);
         return new Jwt("$headerAndPayload.$signature");
     }
@@ -1222,12 +1274,13 @@ class OpenIDConnectClient
 
         // If the client supports Proof Key for Code Exchange (PKCE)
         $ccm = $this->codeChallengeMethod;
-        if (!empty($ccm)) {
-            if (!in_array($ccm, $this->getProviderConfigValue('code_challenge_methods_supported'), true)) {
-                throw new OpenIDConnectClientException("Unsupported code challenge method by IdP");
+        if ($ccm) {
+            $supportedCodeChallengeMethods = $this->getProviderConfigValue('code_challenge_methods_supported', []);
+            if (!in_array($ccm, $supportedCodeChallengeMethods, true)) {
+                throw new OpenIDConnectClientException("Unsupported code challenge method $ccm by IdP. Supported methods: " . implode(', ', $supportedCodeChallengeMethods));
             }
 
-            $codeVerifier = base64url_encode(random_bytes(32));
+            $codeVerifier = base64url_encode(\random_bytes(32));
             $this->setSessionKey(self::CODE_VERIFIER, $codeVerifier);
 
             if (!empty(self::PKCE_ALGS[$ccm])) {
@@ -1333,7 +1386,7 @@ class OpenIDConnectClient
             'redirect_uri' => $this->getRedirectURL(),
         ];
 
-        if (!empty($this->codeChallengeMethod)) {
+        if ($this->codeChallengeMethod) {
             $cv = $this->getSessionKey(self::CODE_VERIFIER);
             if (empty($cv)) {
                 throw new OpenIDConnectClientException("Code verifier from session is empty");
@@ -1547,8 +1600,11 @@ class OpenIDConnectClient
             case 'ES512':
                 $key = $this->fetchKeyForHeader($header);
                 return $this->verifyEcJwtSignature($hashType, $key, $payload, $signature);
+            case 'EdDSA':
+                $key = $this->fetchKeyForHeader($header);
+                return $key->verify($payload, $signature);
         }
-        throw new OpenIDConnectClientException('No support for signature type: ' . $header->alg);
+        throw new OpenIDConnectClientException("No support for signature type `$header->alg`");
     }
 
     /**

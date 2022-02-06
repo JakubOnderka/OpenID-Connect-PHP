@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### New
 * Add support for `private_key_jwt` authentication method
+* Add support for `Ed25519` and `Ed448` signed JWTs
 * Allow to pass Authorization token to `register` method
 
 ## [1.0.0-alpha] - 2022-02-03

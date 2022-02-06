@@ -48,6 +48,17 @@ JSON;
         $this->assertInstanceOf(phpseclib3\Crypt\EC\PublicKey::class, $loaded);
     }
 
+    public function testLoadEdKey()
+    {
+        $key = <<<JSON
+{"kty":"OKP","crv":"Ed25519",
+   "x":"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"}
+JSON;
+        EC::addFileFormat(JwkEcFormat::class);
+        $loaded = EC::load(Json::decode($key));
+        $this->assertInstanceOf(phpseclib3\Crypt\EC\PublicKey::class, $loaded);
+    }
+
     /**
      * @param string $alg
      * @param string $jwt
@@ -110,6 +121,26 @@ JSON;
         $this->assertTrue($verified);
 
         $client->setClientSecret('secret__invalid');
+        $verified = $client->verifyJwtSignature($jwt);
+        $this->assertFalse($verified);
+    }
+
+    public function testEdTokenVerification()
+    {
+        // Token from RFC 8037 example
+        $jwt = new Jwt('eyJhbGciOiJFZERTQSJ9.RXhhbXBsZSBvZiBFZDI1NTE5IHNpZ25pbmc.hgyY0il_MGCjP0JzlnLWG1PPOt7-09PGcvMg3AIbQR6dWbhijcNR4ki4iylGjg5BhVsPt9g7sVvpAr_MuM0KAg');
+        /** @var OpenIDConnectClient | MockObject $client */
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchUrl'])->getMock();
+        $client->method('fetchUrl')->willReturn(new CurlResponse('{"keys":[{"kty":"OKP","crv":"Ed25519","x":"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"}]}'));
+        $client->setProviderURL('https://jwt.io/');
+        $client->providerConfigParam(['jwks_uri' => 'https://jwt.io/.well-known/jwks.json']);
+        $verified = $client->verifyJwtSignature($jwt);
+        $this->assertTrue($verified);
+
+        // Modify one letter in JWT content
+        $jwtAsString = (string)$jwt;
+        $jwtAsString[30] = 'A';
+        $jwt = new Jwt($jwtAsString);
         $verified = $client->verifyJwtSignature($jwt);
         $this->assertFalse($verified);
     }
