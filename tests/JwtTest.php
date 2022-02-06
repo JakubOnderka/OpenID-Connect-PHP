@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+use JakubOnderka\Json;
 use JakubOnderka\Jwt;
 use phpseclib3\Crypt\RSA;
 use phpseclib3\Math\BigInteger;
@@ -38,7 +39,8 @@ class JwtTest extends TestCase
 
     public function testCreateEcSigned()
     {
-        $privateKey = \phpseclib3\Crypt\EC::createKey('nistp256');
+        $keys = Json::decode(file_get_contents(__DIR__ . '/data/private_keys.json'));
+        $privateKey = \phpseclib3\Crypt\EC::loadPrivateKey($keys->nistp256);
 
         $jwt = Jwt::createEcSigned([
             'ahoj' => 'světe', // unicode
@@ -66,8 +68,8 @@ class JwtTest extends TestCase
 
     public function testCreateRsaSigned()
     {
-        /** @var RSA\PrivateKey $privateKey */
-        $privateKey = \phpseclib3\Crypt\RSA::createKey();
+        $keys = Json::decode(file_get_contents(__DIR__ . '/data/private_keys.json'));
+        $privateKey = \phpseclib3\Crypt\RSA::loadPrivateKey($keys->RSA2048);
 
         $jwt = Jwt::createRsaSigned([
             'ahoj' => 'světe', // unicode

@@ -26,8 +26,10 @@ class JwksTest extends TestCase
 
     public function testAdd()
     {
+        $keys = Json::decode(file_get_contents(__DIR__ . '/data/private_keys.json'));
+
         foreach (['nistp256', 'nistp384', 'nistp521'] as $type) {
-            $privateKey = \phpseclib3\Crypt\EC::createKey($type);
+            $privateKey = \phpseclib3\Crypt\EC::loadPrivateKey($keys->$type);
             $publicKey = $privateKey->getPublicKey();
 
             $jwks = new Jwks();
@@ -37,9 +39,8 @@ class JwksTest extends TestCase
             $this->assertEquals($publicKey->toString('xml'), $fetched->toString('xml'));
         }
 
-        foreach ([2048, 3072, 4096] as $type) {
-            /** @var \phpseclib3\Crypt\RSA\PrivateKey $privateKey */
-            $privateKey = \phpseclib3\Crypt\RSA\PrivateKey::createKey($type);
+        foreach ([2048, 3072, 4096] as $size) {
+            $privateKey = \phpseclib3\Crypt\RSA\PrivateKey::loadPrivateKey($keys->{"RSA$size"});
             $publicKey = $privateKey->getPublicKey();
 
             $jwks = new Jwks();
