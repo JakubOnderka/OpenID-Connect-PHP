@@ -567,23 +567,23 @@ class Jwt
     {
         switch ($privateKey->getCurve()) {
             case 'secp256r1':
-                $hash = 'sha256';
+                $hashType = 'sha256';
                 $alg = 'ES256';
                 break;
             case 'secp384r1':
-                $hash = 'sha384';
+                $hashType = 'sha384';
                 $alg = 'ES384';
                 break;
             case 'secp521r1':
-                $hash = 'sha512';
+                $hashType = 'sha512';
                 $alg = 'ES512';
                 break;
             case 'Ed25519':
-                $hash = 'sha512';
+                $hashType = 'sha512';
                 $alg = 'EdDSA';
                 break;
             case 'Ed448':
-                $hash = 'shake256-912';
+                $hashType = 'shake256-912';
                 $alg = 'EdDSA';
                 break;
             default:
@@ -593,13 +593,19 @@ class Jwt
         $headerAndPayload = self::createHeaderAndPayload($payload, $alg, $kid);
 
         $signature = $privateKey
-            ->withHash($hash)
+            ->withHash($hashType)
             ->withSignatureFormat('raw')
             ->sign($headerAndPayload);
 
         if (is_array($signature)) {
             // secp curves signature result is array
-            $signature = $signature['r']->toBytes() . $signature['s']->toBytes();
+            $expectedHalfSignatureSize = substr($hashType, 3, 3) / 8;
+
+            // From RFC 7518: Turn R and S into octet sequences in big-endian order, with each array being be 32 octets long.
+            // The octet sequence representations MUST NOT be shortened to omit any leading zero octets contained in the values.
+            $r = str_pad($signature['r']->toBytes(), $expectedHalfSignatureSize, "\0", STR_PAD_LEFT);
+            $s = str_pad($signature['s']->toBytes(), $expectedHalfSignatureSize, "\0", STR_PAD_LEFT);
+            $signature = $r . $s;
         }
         $signature = base64url_encode($signature);
         return new Jwt("$headerAndPayload.$signature");
@@ -1582,6 +1588,10 @@ class OpenIDConnectClient
         $hashType = 'sha' . substr($header->alg, 2);
 
         switch ($header->alg) {
+            case 'HS256':
+            case 'HS512':
+            case 'HS384':
+                return $this->verifyHmacJwtSignature($hashType, $this->clientSecret, $payload, $signature);
             case 'RS256':
             case 'PS256':
             case 'RS384':
@@ -1591,10 +1601,6 @@ class OpenIDConnectClient
                 $isPss = $header->alg[0] === 'P';
                 $key = $this->fetchKeyForHeader($header);
                 return $this->verifyRsaJwtSignature($hashType, $key, $payload, $signature, $isPss);
-            case 'HS256':
-            case 'HS512':
-            case 'HS384':
-                return $this->verifyHmacJwtSignature($hashType, $this->clientSecret, $payload, $signature);
             case 'ES256':
             case 'ES384':
             case 'ES512':
