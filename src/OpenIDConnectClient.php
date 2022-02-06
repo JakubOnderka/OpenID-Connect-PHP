@@ -860,13 +860,13 @@ class OpenIDConnectClient
     private $authenticationMethod;
 
     /**
-     * @param string|null $providerUrl
+     * @param string $providerUrl
      * @param string|null $clientId
      * @param string|null $clientSecret
      * @param string|null $issuer An Issuer Identifier is a case sensitive URL. If not provided, $providerUrl will be used as issuer
      * @throws OpenIDConnectClientException
      */
-    public function __construct(string $providerUrl = null, string $clientId = null, string $clientSecret = null, string $issuer = null)
+    public function __construct(string $providerUrl, string $clientId = null, string $clientSecret = null, string $issuer = null)
     {
         // Require the cURL and JSON PHP extensions to be installed
         if (!function_exists('curl_init')) {
@@ -876,15 +876,8 @@ class OpenIDConnectClient
             throw new OpenIDConnectClientException('OpenIDConnectClient requires the JSON PHP extension.');
         }
 
-        if ($providerUrl) {
-            $this->setProviderURL($providerUrl);
-        }
-
-        if ($issuer) {
-            $this->setIssuer($issuer);
-        } elseif ($providerUrl) {
-            $this->setIssuer($this->getProviderURL());
-        }
+        $this->setProviderURL($providerUrl);
+        $this->setIssuer($issuer ?: $this->getProviderURL());
 
         $this->clientID = $clientId;
         $this->clientSecret = $clientSecret;

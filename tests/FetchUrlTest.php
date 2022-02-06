@@ -41,7 +41,7 @@ namespace {
                 ],
             ]);
 
-            $client = new OpenIDConnectClient();
+            $client = new OpenIDConnectClient('https://example.com');
             $resp = $client->fetchURL('https://example.com');
             $this->assertEquals(200, $resp->responseCode);
             $this->assertTrue($resp->isSuccess());

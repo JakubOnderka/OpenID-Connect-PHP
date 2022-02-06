@@ -68,10 +68,8 @@ JSON;
     public function testTokenVerification(string $alg, string $jwt)
     {
         $jwt = new Jwt($jwt);
-        /** @var OpenIDConnectClient | MockObject $client */
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchUrl'])->getMock();
+        $client = $this->prepare();
         $client->method('fetchUrl')->willReturn(new CurlResponse(file_get_contents(__DIR__ . "/data/jwks-$alg.json")));
-        $client->setProviderURL('https://jwt.io/');
         $client->providerConfigParam(['jwks_uri' => 'https://jwt.io/.well-known/jwks.json']);
         $verified = $client->verifyJwtSignature($jwt);
         $this->assertTrue($verified);
@@ -86,14 +84,13 @@ JSON;
     public function testTokenVerification_invalidKid(string $alg, string $jwt)
     {
         $jwt = new Jwt($jwt);
-        /** @var OpenIDConnectClient | MockObject $client */
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchUrl'])->getMock();
+
+        $client = $this->prepare();
 
         $certs = Json::decode(file_get_contents(__DIR__ . "/data/jwks-$alg.json"));
         $certs->keys[0]->kid = 'different_kid';
 
         $client->method('fetchUrl')->willReturn(new CurlResponse(Json::encode($certs)));
-        $client->setProviderURL('https://jwt.io/');
         $client->providerConfigParam(['jwks_uri' => 'https://jwt.io/.well-known/jwks.json']);
 
         $alg = strtoupper($alg);
@@ -111,10 +108,8 @@ JSON;
     {
         $jwt = new Jwt($jwt);
 
-        /** @var OpenIDConnectClient | MockObject $client */
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchUrl'])->getMock();
+        $client = $this->prepare();
         $client->expects($this->never())->method('fetchUrl');
-        $client->setProviderURL('https://jwt.io/');
         $client->setClientSecret('secret');
         $client->providerConfigParam(['jwks_uri' => 'https://jwt.io/.well-known/jwks.json']);
         $verified = $client->verifyJwtSignature($jwt);
@@ -129,10 +124,8 @@ JSON;
     {
         // Token from RFC 8037 example
         $jwt = new Jwt('eyJhbGciOiJFZERTQSJ9.RXhhbXBsZSBvZiBFZDI1NTE5IHNpZ25pbmc.hgyY0il_MGCjP0JzlnLWG1PPOt7-09PGcvMg3AIbQR6dWbhijcNR4ki4iylGjg5BhVsPt9g7sVvpAr_MuM0KAg');
-        /** @var OpenIDConnectClient | MockObject $client */
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchUrl'])->getMock();
+        $client = $this->prepare();
         $client->method('fetchUrl')->willReturn(new CurlResponse('{"keys":[{"kty":"OKP","crv":"Ed25519","x":"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"}]}'));
-        $client->setProviderURL('https://jwt.io/');
         $client->providerConfigParam(['jwks_uri' => 'https://jwt.io/.well-known/jwks.json']);
         $verified = $client->verifyJwtSignature($jwt);
         $this->assertTrue($verified);
@@ -143,6 +136,18 @@ JSON;
         $jwt = new Jwt($jwtAsString);
         $verified = $client->verifyJwtSignature($jwt);
         $this->assertFalse($verified);
+    }
+
+    /**
+     * @return OpenIDConnectClient | MockObject
+     */
+    private function prepare()
+    {
+        return $this
+            ->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['fetchUrl'])
+            ->setConstructorArgs(['https://jwt.io/'])
+            ->getMock();
     }
 
     public function providesTokens(): array

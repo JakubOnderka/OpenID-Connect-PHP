@@ -272,10 +272,7 @@ namespace {
         public function testVerifyAndValidateLogoutToken()
         {
             $jwt = new Jwt("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3NlcnZlci5leGFtcGxlLmNvbSIsInN1YiI6IjI0ODI4OTc2MTAwMSIsImF1ZCI6InM2QmhkUmtxdDMiLCJpYXQiOjE0NzE1NjYxNTQsImp0aSI6ImJXSnEiLCJzaWQiOiIwOGE1MDE5Yy0xN2UxLTQ5NzctOGY0Mi02NWExMjg0M2VhMDIiLCJldmVudHMiOnsiaHR0cDovL3NjaGVtYXMub3BlbmlkLm5ldC9ldmVudC9iYWNrY2hhbm5lbC1sb2dvdXQiOnt9fX0.McD4YIsDHb8Ug5B4MRfpisQaxCCXi6EUPerx3AH3v0Q");
-            $client = new OpenIDConnectClient();
-            $client->setClientID('s6BhdRkqt3');
-            $client->setClientSecret('ahoj');
-            $client->setIssuer('https://server.example.com');
+            $client = new OpenIDConnectClient('https://server.example.com', 's6BhdRkqt3', 'ahoj');
             JakubOnderka\setTime(1471566155);
             $client->verifyAndValidateLogoutToken($jwt);
             $this->assertTrue(true);
@@ -323,6 +320,7 @@ namespace {
 
             $client = $this->getMockBuilder(OpenIDConnectClient::class)
                 ->setMethods(['requestTokens', 'getProviderConfigValue', 'getWellKnownIssuer', 'verifyJwtSignature', 'fetchURL', 'getSessionKey', 'unsetSessionKey'])
+                ->setConstructorArgs(['https://jwt.io/'])
                 ->getMock();
             $client->method('getProviderConfigValue')->willReturn(true);
             $client->method('verifyJwtSignature')->willReturn(true);
@@ -333,7 +331,6 @@ namespace {
                 return $sessions[$key];
             }));
 
-            $client->setProviderURL('https://jwt.io/');
             $client->setIssuer('https://example.com');
             $client->setClientID('s6BhdRkqt3');
             return $client;

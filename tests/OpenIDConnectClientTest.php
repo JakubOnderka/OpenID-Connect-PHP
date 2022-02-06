@@ -11,7 +11,7 @@ class OpenIDConnectClientTest extends TestCase
 {
     public function testBase64url()
     {
-        $client = new OpenIDConnectClient(); // include
+        $client = new OpenIDConnectClient('https://example.com'); // include
 
         $binaryString = hash('sha256', '');
         $encoded = JakubOnderka\base64url_encode($binaryString);
@@ -25,7 +25,7 @@ class OpenIDConnectClientTest extends TestCase
 
     public function testSettersAndGetters()
     {
-        $client = new OpenIDConnectClient();
+        $client = new OpenIDConnectClient('https://example.com');
 
         $client->setTimeout(1234);
         $this->assertEquals(1234, $client->getTimeout());
@@ -50,7 +50,9 @@ class OpenIDConnectClientTest extends TestCase
      */
     public function testGetRedirectURL()
     {
-        $client = new OpenIDConnectClient();
+        $client = new OpenIDConnectClient('https://example.com');
+
+        $this->cleanup();
 
         $this->assertSame('http:///', $client->getRedirectURL());
 
@@ -64,11 +66,13 @@ class OpenIDConnectClientTest extends TestCase
         $this->cleanup();
 
         /** @var OpenIDConnectClient | MockObject $client */
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['fetchURL'])
+            ->setConstructorArgs(['https://example.com'])
+            ->getMock();
         $client->method('fetchURL')
             ->with($this->equalTo('https://example.com/.well-known/openid-configuration'))
             ->willReturn(new CurlResponse('{"issuer":"https://example.com"}'));
-        $client->setProviderURL('https://example.com');
         $client->setIssuer('https://example.com');
         $this->assertEquals('https://example.com', $client->getWellKnownIssuer());
     }
@@ -78,11 +82,13 @@ class OpenIDConnectClientTest extends TestCase
         $this->cleanup();
 
         /** @var OpenIDConnectClient | MockObject $client */
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['fetchURL'])
+            ->setConstructorArgs(['https://example.com/'])
+            ->getMock();
         $client->method('fetchURL')
             ->with($this->equalTo('https://example.com/.well-known/openid-configuration'))
             ->willReturn(new CurlResponse('{"issuer":"https://example.com"}'));
-        $client->setProviderURL('https://example.com/');
         $client->setIssuer('https://example.com/');
         $this->assertEquals('https://example.com', $client->getWellKnownIssuer());
     }
@@ -92,11 +98,13 @@ class OpenIDConnectClientTest extends TestCase
         $this->cleanup();
 
         /** @var OpenIDConnectClient | MockObject $client */
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['fetchURL'])
+            ->setConstructorArgs(['https://example.com/.well-known/openid-configuration'])
+            ->getMock();
         $client->method('fetchURL')
             ->with($this->equalTo('https://example.com/.well-known/openid-configuration'))
             ->willReturn(new CurlResponse('{"issuer":"https://example.com"}'));
-        $client->setProviderURL('https://example.com/.well-known/openid-configuration');
         $client->setIssuer('https://example.com');
         $this->assertEquals('https://example.com', $client->getWellKnownIssuer());
     }
@@ -106,13 +114,14 @@ class OpenIDConnectClientTest extends TestCase
         $this->cleanup();
 
         /** @var OpenIDConnectClient | MockObject $client */
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['fetchURL'])
+            ->setConstructorArgs(['https://example.com'])
+            ->getMock();
         $client->method('fetchURL')
             ->with($this->equalTo('https://example.com/.well-known/openid-configuration?ahoj=svete'))
             ->willReturn(new CurlResponse('{"issuer":"https://example.com"}'));
         $client->setWellKnownConfigParameters(['ahoj' => 'svete']);
-        $client->setProviderURL('https://example.com');
-        $client->setIssuer('https://example.com');
         $this->assertEquals('https://example.com', $client->getWellKnownIssuer());
     }
 
@@ -121,11 +130,13 @@ class OpenIDConnectClientTest extends TestCase
         $this->cleanup();
 
         /** @var OpenIDConnectClient | MockObject $client */
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['fetchURL'])
+            ->setConstructorArgs(['https://example.com'])
+            ->getMock();
         $client->method('fetchURL')
             ->with($this->equalTo('https://example.com/.well-known/openid-configuration'))
             ->willReturn(new CurlResponse('{"issuer":"iss'));
-        $client->setProviderURL('https://example.com');
 
         $this->expectException(JakubOnderka\JsonException::class);
         $client->getWellKnownIssuer();
@@ -153,12 +164,13 @@ class OpenIDConnectClientTest extends TestCase
         $this->cleanup();
 
         /** @var OpenIDConnectClient | MockObject $client */
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['fetchURL'])
+            ->setConstructorArgs(['https://example.com'])
+            ->getMock();
         $client->method('fetchURL')
             ->with($this->equalTo('https://example.com/.well-known/openid-configuration'))
             ->willReturn(new CurlResponse('{"issuer":"iss"}'));
-        $client->setProviderURL('https://example.com');
-        $client->setIssuer('https://example.com');
 
         $this->expectException(JakubOnderka\OpenIDConnectClientException::class);
         $this->expectExceptionMessage('Invalid OpenID Provider Metadata returned, expected issuer `https://example.com`, `iss` provided.');
@@ -172,6 +184,7 @@ class OpenIDConnectClientTest extends TestCase
         /** @var OpenIDConnectClient | MockObject $client */
         $client = $this->getMockBuilder(OpenIDConnectClient::class)
             ->setMethods(['redirect', 'commitSession'])
+            ->setConstructorArgs(['https://example.com'])
             ->getMock();
         $client->method('commitSession')->willReturn(true);
         $client->method('redirect')->with(
@@ -204,6 +217,7 @@ class OpenIDConnectClientTest extends TestCase
         /** @var OpenIDConnectClient | MockObject $client */
         $client = $this->getMockBuilder(OpenIDConnectClient::class)
             ->setMethods(['redirect', 'commitSession'])
+            ->setConstructorArgs(['https://example.com'])
             ->getMock();
         $client->method('commitSession')->willReturn(true);
         $client->method('redirect')->with(
@@ -233,6 +247,7 @@ class OpenIDConnectClientTest extends TestCase
         /** @var OpenIDConnectClient | MockObject $client */
         $client = $this->getMockBuilder(OpenIDConnectClient::class)
             ->setMethods(['redirect', 'commitSession'])
+            ->setConstructorArgs(['https://example.com'])
             ->getMock();
         $client->method('commitSession')->willReturn(true);
         $client->method('redirect')->with(
@@ -262,6 +277,7 @@ class OpenIDConnectClientTest extends TestCase
         /** @var OpenIDConnectClient | MockObject $client */
         $client = $this->getMockBuilder(OpenIDConnectClient::class)
             ->setMethods(['redirect', 'commitSession'])
+            ->setConstructorArgs(['https://example.com'])
             ->getMock();
         $client->method('commitSession')->willReturn(true);
         $client->method('redirect')->with(
@@ -295,6 +311,7 @@ class OpenIDConnectClientTest extends TestCase
         /** @var OpenIDConnectClient | MockObject $client */
         $client = $this->getMockBuilder(OpenIDConnectClient::class)
             ->setMethods(['redirect', 'commitSession', 'fetchURL'])
+            ->setConstructorArgs(['https://example.com'])
             ->getMock();
         $client->method('commitSession')->willReturn(true);
 
@@ -337,6 +354,7 @@ class OpenIDConnectClientTest extends TestCase
         /** @var OpenIDConnectClient | MockObject $client */
         $client = $this->getMockBuilder(OpenIDConnectClient::class)
             ->setMethods(['fetchURL', 'getIdToken'])
+            ->setConstructorArgs(['https://example.com'])
             ->getMock();
         $client->setAccessToken('aa.bb.cc');
         $client->providerConfigParam([
@@ -365,6 +383,7 @@ class OpenIDConnectClientTest extends TestCase
         /** @var OpenIDConnectClient | MockObject $client */
         $client = $this->getMockBuilder(OpenIDConnectClient::class)
             ->setMethods(['fetchURL', 'getIdToken'])
+            ->setConstructorArgs(['https://example.com'])
             ->getMock();
         $client->setAccessToken('aa.bb.cc');
         $client->setClientSecret('secret');
@@ -395,6 +414,7 @@ class OpenIDConnectClientTest extends TestCase
         /** @var OpenIDConnectClient | MockObject $client */
         $client = $this->getMockBuilder(OpenIDConnectClient::class)
             ->setMethods(['redirect', 'commitSession'])
+            ->setConstructorArgs(['https://example.com'])
             ->getMock();
         $client->method('commitSession')->willReturn(true);
         $client->method('redirect')->with(
@@ -424,24 +444,27 @@ class OpenIDConnectClientTest extends TestCase
     public function testFetchWellKnown()
     {
         /** @var OpenIDConnectClient | MockObject $client */
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['fetchURL'])
+            ->setConstructorArgs(['https://example.com'])
+            ->getMock();
+
         $client->method('fetchURL')
             ->with($this->equalTo('https://example.com/.well-known/openid-configuration'))
             ->willReturn(new CurlResponse('{"issuer":"https://example.com"}'));
-        $client->setProviderURL('https://example.com');
-        $client->setIssuer('https://example.com');
         $this->assertEquals("https://example.com", $client->getWellKnownIssuer());
     }
 
     public function testFetchWellKnown_with_custom()
     {
-        /** @var OpenIDConnectClient | MockObject $client */
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['fetchURL'])
+            ->setConstructorArgs(['https://example.com'])
+            ->getMock();
+
         $client->method('fetchURL')
             ->with($this->equalTo('https://example.com/.well-known/openid-configuration?ahoj=svete'))
             ->willReturn(new CurlResponse('{"issuer":"https://example.com"}'));
-        $client->setProviderURL('https://example.com');
-        $client->setIssuer('https://example.com');
         $client->setWellKnownConfigParameters(['ahoj' => 'svete']);
         $this->assertEquals("https://example.com", $client->getWellKnownIssuer());
     }
@@ -454,7 +477,11 @@ class OpenIDConnectClientTest extends TestCase
         $_REQUEST['state'] = 'state';
         $_SESSION['openid_connect_state'] = 'state';
 
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL', 'verifyJwtSignature', 'validateIdToken'])->getMock();
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['fetchURL', 'verifyJwtSignature', 'validateIdToken'])
+            ->setConstructorArgs(['https://example.com'])
+            ->getMock();
+
         $client->method('verifyJwtSignature')->willReturn(true);
         $client->method('validateIdToken')->willReturn(true);
         $client->setClientID('client-id');
@@ -487,7 +514,11 @@ class OpenIDConnectClientTest extends TestCase
         $_REQUEST['state'] = 'state_different';
         $_SESSION['openid_connect_state'] = 'state';
 
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['fetchURL'])
+            ->setConstructorArgs(['https://example.com'])
+            ->getMock();
+
         $client->setClientID('client-id');
         $client->setClientSecret('client-secret');
         $client->providerConfigParam([
@@ -502,7 +533,11 @@ class OpenIDConnectClientTest extends TestCase
 
     public function testRefreshToken()
     {
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL'])->getMock();
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['fetchURL'])
+            ->setConstructorArgs(['https://example.com'])
+            ->getMock();
+
         $client->providerConfigParam([
             'token_endpoint' => 'https://example.com',
             'token_endpoint_auth_methods_supported' => ['client_secret_basic'],
@@ -534,7 +569,10 @@ class OpenIDConnectClientTest extends TestCase
         $_REQUEST['state'] = 'state';
         $_SESSION['openid_connect_state'] = 'state';
 
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL', 'verifyJwtSignature', 'validateIdToken'])->getMock();
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['fetchURL', 'verifyJwtSignature', 'validateIdToken'])
+            ->setConstructorArgs(['https://example.com'])
+            ->getMock();
         $client->method('verifyJwtSignature')->willReturn(true);
         $client->method('validateIdToken')->willReturn(true);
         $client->setAuthenticationMethod('client_secret_jwt');
@@ -563,7 +601,10 @@ class OpenIDConnectClientTest extends TestCase
         $_REQUEST['state'] = 'state';
         $_SESSION['openid_connect_state'] = 'state';
 
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL', 'verifyJwtSignature', 'validateIdToken'])->getMock();
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['fetchURL', 'verifyJwtSignature', 'validateIdToken'])
+            ->setConstructorArgs(['https://example.com'])
+            ->getMock();
         $client->method('verifyJwtSignature')->willReturn(true);
         $client->method('validateIdToken')->willReturn(true);
         $client->setAuthenticationMethod('client_secret_post');
@@ -597,7 +638,11 @@ class OpenIDConnectClientTest extends TestCase
         $_SESSION['openid_connect_state'] = 'state';
         $_SESSION['openid_connect_code_verifier'] = 'verifier';
 
-        $client = $this->getMockBuilder(OpenIDConnectClient::class)->setMethods(['fetchURL', 'verifyJwtSignature', 'validateIdToken'])->getMock();
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['fetchURL', 'verifyJwtSignature', 'validateIdToken'])
+            ->setConstructorArgs(['https://example.com'])
+            ->getMock();
+
         $client->method('verifyJwtSignature')->willReturn(true);
         $client->method('validateIdToken')->willReturn(true);
         $client->setClientID('client-id');
@@ -628,5 +673,8 @@ class OpenIDConnectClientTest extends TestCase
     {
         $_REQUEST = [];
         $_SESSION = [];
+
+        $_SERVER['SERVER_NAME'] = '';
+        $_SERVER['REQUEST_URI'] = '';
     }
 }
