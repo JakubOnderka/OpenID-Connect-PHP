@@ -1293,24 +1293,30 @@ class OpenIDConnectClient
             ]);
         }
 
-        // PAR, @see https://datatracker.ietf.org/doc/html/rfc9126
-        $pushedAuthorizationEndpoint = $this->getProviderConfigValue('pushed_authorization_request_endpoint', false);
-        if ($pushedAuthorizationEndpoint) {
-            if ($this->clientPrivateKey || $this->clientSecret) {
-                // Send as signed JWT to remote server when client secret or private key is set
-                // @see https://datatracker.ietf.org/doc/html/rfc9101
-                if ($this->clientPrivateKey instanceof EC\PrivateKey) {
-                    $jwt = Jwt::createEcSigned($authParams, $this->clientPrivateKey);
-                } elseif ($this->clientPrivateKey) {
-                    $jwt = Jwt::createRsaSigned($authParams, 'RS256', $this->clientPrivateKey);
-                } else {
-                    $jwt = Jwt::createHmacSigned($authParams, 'HS256', $this->clientSecret);
-                }
-                $authParams = [
-                    'request' => (string)$jwt,
-                    'client_id' => $this->clientID,
-                ];
+        // Send as signed JWT to remote server when client secret or private key is set
+        // @see https://datatracker.ietf.org/doc/html/rfc9101
+        if ($this->getProviderConfigValue('request_parameter_supported', false) && ($this->clientPrivateKey || $this->clientSecret)) {
+            if ($this->clientPrivateKey instanceof EC\PrivateKey) {
+                $jwt = Jwt::createEcSigned($authParams, $this->clientPrivateKey);
+            } elseif ($this->clientPrivateKey) {
+                $jwt = Jwt::createRsaSigned($authParams, 'RS256', $this->clientPrivateKey);
+            } else {
+                $jwt = Jwt::createHmacSigned($authParams, 'HS256', $this->clientSecret);
             }
+            // Values for the response_type and client_id parameters MUST be included using the OAuth 2.0 request syntax,
+            // since they are REQUIRED by OAuth 2.0
+            $authParams = [
+                'request' => (string)$jwt,
+                'client_id' => $this->clientID,
+                'scope' => $authParams['scope'],
+            ];
+            if (!empty($this->responseTypes)) {
+                $authParams['response_type'] = implode(' ', $this->responseTypes);
+            }
+        }
+
+        // PAR, @see https://datatracker.ietf.org/doc/html/rfc9126
+        if ($this->getProviderConfigValue('pushed_authorization_request_endpoint', false)) {
             $response = $this->endpointRequest($authParams, 'pushed_authorization_request');
             if (isset($response->request_uri)) {
                 $authParams = [
@@ -2556,7 +2562,7 @@ class OpenIDConnectClient
 
     /**
      * @param array<string, mixed> $params
-     * @param string $endpointName
+     * @param string $endpointName without `_endpoint`
      * @return CurlResponse
      * @throws JsonException
      * @throws OpenIDConnectClientException
@@ -2631,7 +2637,7 @@ class OpenIDConnectClient
 
     /**
      * @param array<string, mixed> $params
-     * @param string $endpointName
+     * @param string $endpointName without `_endpoint`
      * @return \stdClass
      * @throws JsonException
      * @throws OpenIDConnectClientException

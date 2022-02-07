@@ -206,6 +206,7 @@ class OpenIDConnectClientTest extends TestCase
         $client->providerConfigParam([
             'authorization_endpoint' => 'https://example.com',
             'pushed_authorization_request_endpoint' => false,
+            'request_parameter_supported' => false,
         ]);
         $this->assertFalse($client->authenticate());
     }
@@ -236,6 +237,7 @@ class OpenIDConnectClientTest extends TestCase
             'authorization_endpoint' => 'https://example.com',
             'code_challenge_methods_supported' => ['plain', 'S256'],
             'pushed_authorization_request_endpoint' => false,
+            'request_parameter_supported' => false,
         ]);
         $this->assertFalse($client->authenticate());
     }
@@ -266,6 +268,7 @@ class OpenIDConnectClientTest extends TestCase
             'authorization_endpoint' => 'https://example.com',
             'code_challenge_methods_supported' => ['plain', 'S256'],
             'pushed_authorization_request_endpoint' => false,
+            'request_parameter_supported' => false,
         ]);
         $this->assertFalse($client->authenticate());
     }
@@ -300,6 +303,7 @@ class OpenIDConnectClientTest extends TestCase
         $client->providerConfigParam([
             'authorization_endpoint' => 'https://example.com',
             'pushed_authorization_request_endpoint' => false,
+            'request_parameter_supported' => false,
         ]);
         $this->assertFalse($client->authenticate());
     }
@@ -343,6 +347,7 @@ class OpenIDConnectClientTest extends TestCase
             'pushed_authorization_request_endpoint' => 'https://example.com/par',
             'token_endpoint' => 'https://example.com/token',
             'token_endpoint_auth_methods_supported' => ['client_secret_basic'],
+            'request_parameter_supported' => true,
         ]);
         $this->assertFalse($client->authenticate());
     }
@@ -437,6 +442,7 @@ class OpenIDConnectClientTest extends TestCase
         $client->providerConfigParam([
             'authorization_endpoint' => 'https://example.com',
             'pushed_authorization_request_endpoint' => false,
+            'request_parameter_supported' => false,
         ]);
         $this->assertFalse($client->authenticate());
     }
