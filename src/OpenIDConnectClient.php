@@ -534,6 +534,110 @@ class Jwt
     }
 
     /**
+     * Check signature of this JWT.
+     *
+     * @param \Closure(\stdClass): mixed $keyFetcher Closure that accepts parsed header and returns appropriate key
+     * @throws JsonException
+     * @throws \Exception
+     */
+    public function verify(\Closure $keyFetcher): bool
+    {
+        $signature = $this->signature();
+        if ('' === $signature) {
+            throw new \RuntimeException('Decoded signature is empty string');
+        }
+
+        $header = $this->header();
+        if (!isset($header->alg)) {
+            throw new \RuntimeException('Error missing signature type in token header');
+        }
+
+        $payload = $this->withoutSignature();
+        $hashType = 'sha' . substr($header->alg, 2);
+
+        switch ($header->alg) {
+            case 'HS256':
+            case 'HS512':
+            case 'HS384':
+                $key = $keyFetcher($header);
+                return $this->verifyHmacSignature($hashType, $key, $payload, $signature);
+            case 'RS256':
+            case 'PS256':
+            case 'RS384':
+            case 'PS384':
+            case 'RS512':
+            case 'PS512':
+                $key = $keyFetcher($header);
+                $isPss = $header->alg[0] === 'P';
+                return $this->verifyRsaSignature($hashType, $key, $payload, $signature, $isPss);
+            case 'ES256':
+            case 'ES384':
+            case 'ES512':
+                $key = $keyFetcher($header);
+                return $this->verifyEcSignature($hashType, $key, $payload, $signature);
+            case 'EdDSA':
+                $key = $keyFetcher($header);
+                return $key->verify($payload, $signature);
+        }
+        throw new \RuntimeException("Unsupported JWT signature algorith $header->alg");
+    }
+
+    /**
+     * @param string $hashType
+     * @param string $key
+     * @param string $payload
+     * @param string $signature
+     * @return bool
+     */
+    private function verifyHmacSignature(string $hashType, string $key, string $payload, string $signature): bool
+    {
+        $expected = hash_hmac($hashType, $payload, $key, true);
+        return hash_equals($signature, $expected);
+    }
+
+    /**
+     * @param string $hashType
+     * @param RSA\PublicKey $key
+     * @param string $payload
+     * @param string $signature
+     * @param bool $isPss
+     * @return bool
+     */
+    private function verifyRsaSignature(string $hashType, RSA\PublicKey $key, string $payload, string $signature, bool $isPss): bool
+    {
+        $rsa = $key->withHash($hashType);
+        if ($isPss) {
+            $rsa = $rsa->withMGFHash($hashType)
+                ->withPadding(RSA::SIGNATURE_PSS);
+        } else {
+            $rsa = $rsa->withPadding(RSA::SIGNATURE_PKCS1);
+        }
+        return $rsa->verify($payload, $signature);
+    }
+
+    /**
+     * @param string $hashType
+     * @param EC\PublicKey $ec
+     * @param string $payload
+     * @param string $signature
+     * @return bool
+     */
+    private function verifyEcSignature(string $hashType, EC\PublicKey $ec, string $payload, string $signature): bool
+    {
+        $expectedHalfSignatureSize = $hashType === 'sha512' ? 66 : substr($hashType, 3, 3) / 8;
+
+        $half = strlen($signature) / 2;
+        if ($expectedHalfSignatureSize !== $half) {
+            throw new \RuntimeException("Signature has invalid length, expected $expectedHalfSignatureSize bytes, got $half");
+        }
+        $rawSignature = [
+            'r' => new BigInteger(substr($signature, 0, $half), 256),
+            's' => new BigInteger(substr($signature, $half), 256),
+        ];
+        return $ec->withSignatureFormat('raw')->withHash($hashType)->verify($payload, $rawSignature);
+    }
+
+    /**
      * Create JWT signed by provided shared secret
      *
      * @param array<string, mixed> $payload
@@ -1510,63 +1614,6 @@ class OpenIDConnectClient
     }
 
     /**
-     * @param string $hashType
-     * @param RSA\PublicKey $key
-     * @param string $payload
-     * @param string $signature
-     * @param bool $isPss
-     * @return bool
-     * @throws OpenIDConnectClientException
-     */
-    private function verifyRsaJwtSignature(string $hashType, RSA\PublicKey $key, string $payload, string $signature, bool $isPss): bool
-    {
-        $rsa = $key->withHash($hashType);
-        if ($isPss) {
-            $rsa = $rsa->withMGFHash($hashType)
-                ->withPadding(RSA::SIGNATURE_PSS);
-        } else {
-            $rsa = $rsa->withPadding(RSA::SIGNATURE_PKCS1);
-        }
-        return $rsa->verify($payload, $signature);
-    }
-
-    /**
-     * @param string $hashType
-     * @param string $key
-     * @param string $payload
-     * @param string $signature
-     * @return bool
-     */
-    private function verifyHmacJwtSignature(string $hashType, string $key, string $payload, string $signature): bool
-    {
-        $expected = hash_hmac($hashType, $payload, $key, true);
-        return hash_equals($signature, $expected);
-    }
-
-    /**
-     * @param string $hashType
-     * @param EC\PublicKey $ec
-     * @param string $payload
-     * @param string $signature
-     * @return bool
-     * @throws OpenIDConnectClientException
-     */
-    private function verifyEcJwtSignature(string $hashType, EC\PublicKey $ec, string $payload, string $signature): bool
-    {
-        $expectedHalfSignatureSize = $hashType === 'sha512' ? 66 : substr($hashType, 3, 3) / 8;
-
-        $half = strlen($signature) / 2;
-        if ($expectedHalfSignatureSize !== $half) {
-            throw new OpenIDConnectClientException("Signature has invalid length, expected $expectedHalfSignatureSize bytes, got $half");
-        }
-        $rawSignature = [
-            'r' => new BigInteger(substr($signature, 0, $half), 256),
-            's' => new BigInteger(substr($signature, $half), 256),
-        ];
-        return $ec->withSignatureFormat('raw')->withHash($hashType)->verify($payload, $rawSignature);
-    }
-
-    /**
      * @param Jwt $jwt
      * @return bool
      * @throws OpenIDConnectClientException
@@ -1574,43 +1621,13 @@ class OpenIDConnectClient
      */
     public function verifyJwtSignature(Jwt $jwt): bool
     {
-        $signature = $jwt->signature();
-        if ('' === $signature) {
-            throw new OpenIDConnectClientException('Decoded signature is empty string');
-        }
-
-        $header = $jwt->header();
-        if (!isset($header->alg)) {
-            throw new OpenIDConnectClientException('Error missing signature type in token header');
-        }
-
-        $payload = $jwt->withoutSignature();
-        $hashType = 'sha' . substr($header->alg, 2);
-
-        switch ($header->alg) {
-            case 'HS256':
-            case 'HS512':
-            case 'HS384':
-                return $this->verifyHmacJwtSignature($hashType, $this->clientSecret, $payload, $signature);
-            case 'RS256':
-            case 'PS256':
-            case 'RS384':
-            case 'PS384':
-            case 'RS512':
-            case 'PS512':
-                $isPss = $header->alg[0] === 'P';
-                $key = $this->fetchKeyForHeader($header);
-                return $this->verifyRsaJwtSignature($hashType, $key, $payload, $signature, $isPss);
-            case 'ES256':
-            case 'ES384':
-            case 'ES512':
-                $key = $this->fetchKeyForHeader($header);
-                return $this->verifyEcJwtSignature($hashType, $key, $payload, $signature);
-            case 'EdDSA':
-                $key = $this->fetchKeyForHeader($header);
-                return $key->verify($payload, $signature);
-        }
-        throw new OpenIDConnectClientException("No support for signature type `$header->alg`");
+        return $jwt->verify(function (\stdClass $header) {
+            if ($header->alg[0] === 'H') {
+                return $this->clientSecret;
+            } else {
+                return $this->fetchKeyForHeader($header);
+            }
+        });
     }
 
     /**
