@@ -569,14 +569,17 @@ class Jwt
             case 'secp256r1':
                 $hashType = 'sha256';
                 $alg = 'ES256';
+                $expectedHalfSignatureSize = 32;
                 break;
             case 'secp384r1':
                 $hashType = 'sha384';
                 $alg = 'ES384';
+                $expectedHalfSignatureSize = 48;
                 break;
             case 'secp521r1':
                 $hashType = 'sha512';
                 $alg = 'ES512';
+                $expectedHalfSignatureSize = 66;
                 break;
             case 'Ed25519':
                 $hashType = 'sha512';
@@ -597,10 +600,8 @@ class Jwt
             ->withSignatureFormat('raw')
             ->sign($headerAndPayload);
 
-        if (is_array($signature)) {
-            // secp curves signature result is array
-            $expectedHalfSignatureSize = substr($hashType, 3, 3) / 8;
-
+        // secp curves signature result is array
+        if (isset($expectedHalfSignatureSize)) {
             // From RFC 7518: Turn R and S into octet sequences in big-endian order, with each array being be 32 octets long.
             // The octet sequence representations MUST NOT be shortened to omit any leading zero octets contained in the values.
             $r = str_pad($signature['r']->toBytes(), $expectedHalfSignatureSize, "\0", STR_PAD_LEFT);
@@ -1552,7 +1553,7 @@ class OpenIDConnectClient
      */
     private function verifyEcJwtSignature(string $hashType, EC\PublicKey $ec, string $payload, string $signature): bool
     {
-        $expectedHalfSignatureSize = substr($hashType, 3, 3) / 8;
+        $expectedHalfSignatureSize = $hashType === 'sha512' ? 66 : substr($hashType, 3, 3) / 8;
 
         $half = strlen($signature) / 2;
         if ($expectedHalfSignatureSize !== $half) {

@@ -37,16 +37,21 @@ class JwtTest extends TestCase
          $jwtDecoded->signature();
     }
 
-    public function testCreateEcSigned()
+    /**
+     * @dataProvider providesEc
+     * @return void
+     * @throws \JakubOnderka\JsonException
+     */
+    public function testCreateEcSigned(string $alg, string $curve, string $hash)
     {
-        $privateKey = \phpseclib3\Crypt\EC::loadPrivateKey($this->getPrivateKey('nistp256'));
+        $privateKey = \phpseclib3\Crypt\EC::loadPrivateKey($this->getPrivateKey($curve));
 
         $jwt = Jwt::createEcSigned([
             'ahoj' => 'světe', // unicode
         ], $privateKey);
 
         $jwtDecoded = new Jwt((string)$jwt);
-        $this->assertEquals('ES256', $jwtDecoded->header()->alg);
+        $this->assertEquals($alg, $jwtDecoded->header()->alg);
         $this->assertEquals('JWT', $jwtDecoded->header()->typ);
         $this->assertEquals('světe', $jwtDecoded->payload()->ahoj);
         $signature = $jwtDecoded->signature();
@@ -60,7 +65,7 @@ class JwtTest extends TestCase
         $valid = $privateKey
             ->getPublicKey()
             ->withSignatureFormat('raw')
-            ->withHash('sha256')
+            ->withHash($hash)
             ->verify($jwtDecoded->withoutSignature(), $rawSignature);
         $this->assertTrue($valid);
     }
@@ -118,5 +123,14 @@ class JwtTest extends TestCase
             $keys = Json::decode(file_get_contents(__DIR__ . '/data/private_keys.json'));
         }
         return $keys->{$keyType};
+    }
+
+    public function providesEc(): array
+    {
+        return [
+            'ES256' => ['ES256', 'nistp256', 'sha256'],
+            'ES384' => ['ES384', 'nistp384', 'sha384'],
+            'ES512' => ['ES512', 'nistp521', 'sha512'],
+        ];
     }
 }
