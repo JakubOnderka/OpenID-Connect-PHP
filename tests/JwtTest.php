@@ -34,7 +34,10 @@ class JwtTest extends TestCase
          $this->assertEquals('HS256', $jwtDecoded->header()->alg);
          $this->assertEquals('JWT', $jwtDecoded->header()->typ);
          $this->assertEquals('světe', $jwtDecoded->payload()->ahoj);
-         $jwtDecoded->signature();
+
+         $this->assertTrue($jwtDecoded->verify(function (\stdClass $header) {
+             return 'test';
+         }));
     }
 
     /**
@@ -68,6 +71,10 @@ class JwtTest extends TestCase
             ->withHash($hash)
             ->verify($jwtDecoded->withoutSignature(), $rawSignature);
         $this->assertTrue($valid);
+
+        $this->assertTrue($jwtDecoded->verify(function (\stdClass $header) use ($privateKey) {
+            return $privateKey->getPublicKey();
+        }));
     }
 
     public function testCreateEcEdSigned()
@@ -111,19 +118,23 @@ class JwtTest extends TestCase
         $this->assertEquals('světe', $jwtDecoded->payload()->ahoj);
         $signature = $jwtDecoded->signature();
 
-        $privateKey = $privateKey
+        $publicKey = $privateKey
             ->getPublicKey()
             ->withHash($hash);
 
         if ($alg[0] === 'P') {
-            $privateKey = $privateKey->withMGFHash($hash)
+            $publicKey = $publicKey->withMGFHash($hash)
                 ->withPadding(RSA::SIGNATURE_PSS);
         } else {
-            $privateKey = $privateKey->withPadding(RSA::SIGNATURE_PKCS1);
+            $publicKey = $publicKey->withPadding(RSA::SIGNATURE_PKCS1);
         }
 
-        $valid = $privateKey->verify($jwtDecoded->withoutSignature(), $signature);
+        $valid = $publicKey->verify($jwtDecoded->withoutSignature(), $signature);
         $this->assertTrue($valid);
+
+        $this->assertTrue($jwtDecoded->verify(function (\stdClass $header) use ($privateKey) {
+            return $privateKey->getPublicKey();
+        }));
     }
 
     /**
