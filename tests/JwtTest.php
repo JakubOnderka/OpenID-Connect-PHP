@@ -90,26 +90,39 @@ class JwtTest extends TestCase
         $this->assertTrue($valid);
     }
 
-    public function testCreateRsaSigned()
+    /**
+     * @dataProvider provideRsa
+     * @return void
+     * @throws \JakubOnderka\JsonException
+     */
+    public function testCreateRsaSigned(string $alg, string $key, string $hash)
     {
-        $privateKey = \phpseclib3\Crypt\RSA::loadPrivateKey($this->getPrivateKey('RSA2048'));
+        $privateKey = \phpseclib3\Crypt\RSA::loadPrivateKey($this->getPrivateKey($key));
 
         $jwt = Jwt::createRsaSigned([
             'ahoj' => 'světe', // unicode
-        ], 'RS256', $privateKey, 'kid');
+        ], $alg, $privateKey, 'kid');
 
         $jwtDecoded = new Jwt((string)$jwt);
-        $this->assertEquals('RS256', $jwtDecoded->header()->alg);
+
+        $this->assertEquals($alg, $jwtDecoded->header()->alg);
         $this->assertEquals('JWT', $jwtDecoded->header()->typ);
         $this->assertEquals('kid', $jwtDecoded->header()->kid);
         $this->assertEquals('světe', $jwtDecoded->payload()->ahoj);
         $signature = $jwtDecoded->signature();
 
-        $valid = $privateKey
+        $privateKey = $privateKey
             ->getPublicKey()
-            ->withHash('sha256')
-            ->withPadding(RSA::SIGNATURE_PKCS1)
-            ->verify($jwtDecoded->withoutSignature(), $signature);
+            ->withHash($hash);
+
+        if ($alg[0] === 'P') {
+            $privateKey = $privateKey->withMGFHash($hash)
+                ->withPadding(RSA::SIGNATURE_PSS);
+        } else {
+            $privateKey = $privateKey->withPadding(RSA::SIGNATURE_PKCS1);
+        }
+
+        $valid = $privateKey->verify($jwtDecoded->withoutSignature(), $signature);
         $this->assertTrue($valid);
     }
 
@@ -132,5 +145,17 @@ class JwtTest extends TestCase
             'ES384' => ['ES384', 'nistp384', 'sha384'],
             'ES512' => ['ES512', 'nistp521', 'sha512'],
         ];
+    }
+
+    public function provideRsa(): array
+    {
+        $output = [];
+        foreach (['RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512'] as $alg) {
+            foreach (['RSA2048', 'RSA3072', 'RSA4096'] as $key) {
+                $hash = 'sha' . substr($alg, 2, 3);
+                $output["$alg+$key"] = [$alg, $key, $hash];
+            }
+        }
+        return $output;
     }
 }

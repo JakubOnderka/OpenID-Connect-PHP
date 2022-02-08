@@ -631,7 +631,7 @@ class Jwt
         $headerAndPayload = self::createHeaderAndPayload($payload, $alg, $kid);
 
         $hashType = 'sha' . substr($alg, 2, 3);
-        $privateKey->withHash($hashType);
+        $privateKey = $privateKey->withHash($hashType);
 
         $isPss = $alg[0] === 'P';
         if ($isPss) {
