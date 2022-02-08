@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0-beta] - 2022-02-08
+
 ### BC
 * First argument `providerUrl` in `OpenIDConnectClient` constructor method is now required
 * `verifyAndValidateLogoutToken` and `verifyJwtSignature` public methods now require instance of `Jwt` class
