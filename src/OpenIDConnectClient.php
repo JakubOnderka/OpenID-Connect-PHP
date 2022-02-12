@@ -2281,14 +2281,22 @@ class OpenIDConnectClient
     }
 
     /**
+     * Set private key that will be used for authentication to identity provider. When key is set, authentication method
+     * is automatically set to `private_key_jwt`.
      * @param PrivateKey $privateKey
      * @return void
      */
     public function setClientPrivateKey(PrivateKey $privateKey)
     {
-        if (!$privateKey instanceof EC\PrivateKey && !$privateKey instanceof RSA\PrivateKey) {
+        if ($privateKey instanceof EC\PrivateKey) {
+            $supportedCurves = ['secp256r1', 'secp384r1', 'secp512r1', 'Ed22519', 'Ed448'];
+            if (!in_array($privateKey->getCurve(), $supportedCurves, true)) {
+                throw new \InvalidArgumentException("Unsupported EC curve {$privateKey->getCurve()} provided");
+            }
+        } elseif (!$privateKey instanceof RSA\PrivateKey) {
             throw new \InvalidArgumentException("Private key must be RSA or EC");
         }
+        $this->setAuthenticationMethod('private_key_jwt');
         $this->clientPrivateKey = $privateKey;
     }
 

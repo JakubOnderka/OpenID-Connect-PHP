@@ -4,6 +4,7 @@ declare(strict_types=1);
 use JakubOnderka\CurlResponse;
 use JakubOnderka\OpenIDConnectClient;
 use JakubOnderka\Jwt;
+use phpseclib3\Crypt\EC;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -347,6 +348,54 @@ class OpenIDConnectClientTest extends TestCase
             'pushed_authorization_request_endpoint' => 'https://example.com/par',
             'token_endpoint' => 'https://example.com/token',
             'token_endpoint_auth_methods_supported' => ['client_secret_basic'],
+            'request_parameter_supported' => true,
+        ]);
+        $this->assertFalse($client->authenticate());
+    }
+
+    public function testRequestAuthorization_par_privateKey()
+    {
+        $this->cleanup();
+
+        /** @var OpenIDConnectClient | MockObject $client */
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->setMethods(['redirect', 'commitSession', 'fetchURL'])
+            ->setConstructorArgs(['https://example.com'])
+            ->getMock();
+        $client->method('commitSession')->willReturn(true);
+        $client->setClientID('id');
+        $privateKeys = \JakubOnderka\Json::decode(file_get_contents(__DIR__ . '/data/private_keys.json'));
+        $privateKey = EC::loadPrivateKey($privateKeys->nistp256);
+        $client->setClientPrivateKey($privateKey);
+
+        $client->expects($this->once())->method('fetchURL')
+            ->with(
+                $this->equalTo('https://example.com/par'),
+                $this->callback(function (array $value) use ($privateKey): bool {
+                    $this->assertArrayHasKey('request', $value);
+                    $this->assertEquals('id', $value['client_id']);
+                    $this->assertTrue((new Jwt($value['request']))->verify(function () use ($privateKey) {
+                        return $privateKey->getPublicKey();
+                    }));
+                    return true;
+                })
+            )
+            ->willReturn(new CurlResponse('{"request_uri":"urn:ietf:params:oauth:request_uri:bwc4JK-ESC0w8acc191e-Y1LTC2"}'));
+
+        $client->expects($this->once())->method('redirect')->with(
+            $this->callback(function (string $value): bool {
+                $parsed = parse_url($value);
+                parse_str($parsed['query'], $query);
+                $this->assertEquals('id', $query['client_id']);
+                $this->assertEquals('urn:ietf:params:oauth:request_uri:bwc4JK-ESC0w8acc191e-Y1LTC2', $query['request_uri']);
+                return true;
+            })
+        );
+        $client->providerConfigParam([
+            'authorization_endpoint' => 'https://example.com',
+            'pushed_authorization_request_endpoint' => 'https://example.com/par',
+            'token_endpoint' => 'https://example.com/token',
+            'token_endpoint_auth_methods_supported' => ['private_key_jwt'],
             'request_parameter_supported' => true,
         ]);
         $this->assertFalse($client->authenticate());
