@@ -128,28 +128,28 @@ class JwtBench
         });
     }
 
-    public function provideHmacAlg()
+    public function provideHmacAlg(): \Generator
     {
         yield 'HS256' => ['alg' => 'HS256'];
         yield 'HS384' => ['alg' => 'HS384'];
         yield 'HS512' => ['alg' => 'HS512'];
     }
 
-    public function provideRsaAlg()
+    public function provideRsaAlg(): \Generator
     {
         yield 'RS256' => ['alg' => 'RS256'];
         yield 'RS384' => ['alg' => 'RS384'];
         yield 'RS512' => ['alg' => 'RS512'];
     }
 
-    public function provideRsaPrivateKey()
+    public function provideRsaPrivateKey(): \Generator
     {
         yield 'RSA2048' => ['privateKey' => $this->privateKeys->RSA2048, 'publicKey' => $this->privateKeys->RSA2048->getPublicKey()];
         yield 'RSA3072' => ['privateKey' => $this->privateKeys->RSA3072, 'publicKey' => $this->privateKeys->RSA3072->getPublicKey()];
         yield 'RSA4096' => ['privateKey' => $this->privateKeys->RSA4096, 'publicKey' => $this->privateKeys->RSA4096->getPublicKey()];
     }
 
-    public function provideEc()
+    public function provideEc(): \Generator
     {
         yield 'ES256' => ['privateKey' => $this->privateKeys->nistp256, 'alg' => 'ES256'];
         yield 'ES384' => ['privateKey' => $this->privateKeys->nistp384, 'alg' => 'ES384'];
