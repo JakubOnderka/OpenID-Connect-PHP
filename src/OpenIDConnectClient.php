@@ -1914,6 +1914,25 @@ class OpenIDConnectClient
     }
 
     /**
+     * Fetch claim from ID token for current user. If claim doesn't exists in ID token,
+     * this method tries to fetch claim from user info.
+     *
+     * @param string $attribute
+     * @return mixed|null
+     * @throws JsonException
+     * @throws OpenIDConnectClientException
+     */
+    public function getUserClaim(string $attribute)
+    {
+        $claim = $this->getVerifiedClaims($attribute);
+        if ($claim !== null) {
+            return $claim;
+        }
+
+        return $this->requestUserInfo($attribute);
+    }
+
+    /**
      * Dynamic Client Registration
      *
      * @see https://openid.net/specs/openid-connect-registration-1_0.html
