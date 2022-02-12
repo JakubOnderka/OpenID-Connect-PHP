@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+### New 
+* It is possible to set list of enabled signature algorithms
+
 ## [1.0.0-beta] - 2022-02-08
 
 ### BC

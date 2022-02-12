@@ -964,6 +964,13 @@ class OpenIDConnectClient
     private $authenticationMethod;
 
     /**
+     * List of enabled signature algorithm that can be used for verifying JWT tokens. When not defined, all supported
+     * algos are enabled.
+     * @var array|null
+     */
+    private $enabledSignatureAlgos;
+
+    /**
      * @param string $providerUrl
      * @param string|null $clientId
      * @param string|null $clientSecret
@@ -1621,6 +1628,10 @@ class OpenIDConnectClient
     public function verifyJwtSignature(Jwt $jwt): bool
     {
         return $jwt->verify(function (\stdClass $header) {
+            if ($this->enabledSignatureAlgos && !in_array($header->alg, $this->enabledSignatureAlgos, true)) {
+                throw new OpenIDConnectClientException("Token is signed by {$header->alg}, but this algo is not enabled.");
+            }
+
             if ($header->alg[0] === 'H') {
                 if (!isset($this->clientSecret)) {
                     throw new OpenIDConnectClientException("Token is signed by client secret, but client secret not provided.");
@@ -2419,10 +2430,19 @@ class OpenIDConnectClient
     }
 
     /**
+     * @param array $algos
+     * @return void
+     */
+    public function setEnabledSignatureAlgo(array $algos)
+    {
+        $this->enabledSignatureAlgos = $algos;
+    }
+
+    /**
      * @returns void
      * @throws OpenIDConnectClientException
      */
-    public function validateStateFromSession()
+    private function validateStateFromSession()
     {
         if (!isset($_REQUEST['state'])) {
             throw new OpenIDConnectClientException('State not provided in request');
