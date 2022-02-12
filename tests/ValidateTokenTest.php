@@ -238,7 +238,7 @@ namespace {
 
             $this->checkException(function () use ($client) {
                 $client->authenticate();
-            }, '`at_hash` claim do not match (expected: `-jPtKOXggsT1tkIhQ9UWWw`, actual: `aUAkJG-u6x4RTWuILWy-CA`)');
+            }, '`at_hash` claim do not match to provided access token (expected: `-jPtKOXggsT1tkIhQ9UWWw`, actual: `aUAkJG-u6x4RTWuILWy-CA`)');
         }
 
         public function testValidateIdToken_invalidAccessToken_withoutAtHash()

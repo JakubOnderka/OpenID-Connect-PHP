@@ -1623,6 +1623,9 @@ class OpenIDConnectClient
     {
         return $jwt->verify(function (\stdClass $header) {
             if ($header->alg[0] === 'H') {
+                if (!isset($this->clientSecret)) {
+                    throw new OpenIDConnectClientException("Token is signed by client secret, but client secret not provided.");
+                }
                 return $this->clientSecret;
             } else {
                 return $this->fetchKeyForHeader($header);
@@ -1635,7 +1638,7 @@ class OpenIDConnectClient
      *
      * @see https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
      * @param Jwt $jwt
-     * @param string|null $accessToken
+     * @param string|null $accessToken If access token is provided, it will be validate if match to ID token
      * @return void
      * @throws OpenIDConnectClientException
      * @throws JsonException
@@ -1713,7 +1716,7 @@ class OpenIDConnectClient
             $expectedAtHash = base64url_encode(substr(hash('sha' . $bit, $accessToken, true), 0, $len));
 
             if (!hash_equals($expectedAtHash, $claims->at_hash)) {
-                throw new TokenValidationFailed("`at_hash` claim do not match", $expectedAtHash, $claims->at_hash);
+                throw new TokenValidationFailed("`at_hash` claim do not match to provided access token", $expectedAtHash, $claims->at_hash);
             }
         }
     }
@@ -1902,9 +1905,14 @@ class OpenIDConnectClient
      * @param string|null $attribute If no attribute provided, all claims will be returned
      * @return mixed|null Returns null if provided attribute doesn't exists
      * @throws JsonException
+     * @throws OpenIDConnectClientException
      */
     public function getVerifiedClaims(string $attribute = null)
     {
+        if (!$this->idToken) {
+            throw new OpenIDConnectClientException("ID token is not set. Maybe user is not logged?");
+        }
+
         $idTokenClaims = $this->idToken->payload();
         if ($attribute === null) {
             return $idTokenClaims;
@@ -1956,20 +1964,14 @@ class OpenIDConnectClient
             $headers[] = "Authorization: Bearer $authorization";
         }
 
-        $response = $this->fetchURL($registrationEndpoint, Json::encode($postBody), $headers);
+        $response = $this->fetchURL($registrationEndpoint, Json::encode($postBody), $headers)->json(true);
 
-        try {
-            $decoded = $response->json(true);
-        } catch (JsonException $e) {
-            throw new OpenIDConnectClientException('Error registering: JSON response received from the server was invalid.', 0, $e);
-        }
-
-        if (isset($decoded->error)) {
+        if (isset($response->error)) {
             // @phpstan-ignore-next-line phpstan bug #6026
-            throw new ErrorResponse($decoded->error, $decoded->error_description ?? null);
+            throw new ErrorResponse($response->error, $response->error_description ?? null);
         }
 
-        return $decoded;
+        return $response;
     }
 
     /**
@@ -1977,7 +1979,7 @@ class OpenIDConnectClient
      *
      * @see https://tools.ietf.org/html/rfc7662
      * @param string $token
-     * @param string $tokenTypeHint
+     * @param string $tokenTypeHint Can be for example `access_token` or `refresh_token`
      * @return \stdClass
      * @throws OpenIDConnectClientException
      * @throws JsonException
@@ -2654,10 +2656,15 @@ class OpenIDConnectClient
                 }
                 if ($this->clientPrivateKey instanceof EC\PrivateKey) {
                     $jwt = Jwt::createEcSigned($tokenPayload, $this->clientPrivateKey);
-                } else {
+                } elseif ($this->clientPrivateKey instanceof RSA\PrivateKey) {
                     $jwt = Jwt::createRsaSigned($tokenPayload, 'RS256', $this->clientPrivateKey);
+                } else {
+                    throw new OpenIDConnectClientException("Invalid private key provided");
                 }
             } else {
+                if (!$this->clientSecret) {
+                    throw new OpenIDConnectClientException("Authentication method is set to `client_secret_jwt`, but client secret is not set");
+                }
                 $jwt = Jwt::createHmacSigned($tokenPayload, 'HS256', $this->clientSecret);
             }
 
