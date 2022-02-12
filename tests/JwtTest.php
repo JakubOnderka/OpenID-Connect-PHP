@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 use JakubOnderka\Json;
 use JakubOnderka\Jwt;
+use phpseclib3\Crypt\EC;
 use phpseclib3\Crypt\RSA;
 use phpseclib3\Math\BigInteger;
 use PHPUnit\Framework\TestCase;
@@ -47,7 +48,7 @@ class JwtTest extends TestCase
      */
     public function testCreateEcSigned(string $alg, string $curve, string $hash)
     {
-        $privateKey = \phpseclib3\Crypt\EC::loadPrivateKey($this->getPrivateKey($curve));
+        $privateKey = EC::loadPrivateKey($this->getPrivateKey($curve));
 
         $jwt = Jwt::createEcSigned([
             'ahoj' => 'světe', // unicode
@@ -75,26 +76,32 @@ class JwtTest extends TestCase
         $this->assertTrue($jwtDecoded->verify(function (\stdClass $header) use ($privateKey) {
             return $privateKey->getPublicKey();
         }));
+        $this->assertTrue($jwtDecoded->verify($privateKey->getPublicKey()));
     }
 
-    public function testCreateEcEdSigned()
+    /**
+     * @dataProvider providesEdDsa
+     * @return void
+     * @throws \JakubOnderka\JsonException
+     */
+    public function testCreateEcSigned_edDsa(string $algo, string $curve)
     {
-        $privateKey = \phpseclib3\Crypt\EC::loadPrivateKey($this->getPrivateKey('Ed25519'));
+        $privateKey = EC::loadPrivateKey($this->getPrivateKey($curve));
+        $publicKey = $privateKey->getPublicKey();
 
         $jwt = Jwt::createEcSigned([
             'ahoj' => 'světe', // unicode
         ], $privateKey);
 
         $jwtDecoded = new Jwt((string)$jwt);
-        $this->assertEquals('EdDSA', $jwtDecoded->header()->alg);
+        $this->assertEquals($algo, $jwtDecoded->header()->alg);
         $this->assertEquals('JWT', $jwtDecoded->header()->typ);
         $this->assertEquals('světe', $jwtDecoded->payload()->ahoj);
         $signature = $jwtDecoded->signature();
 
-        $valid = $privateKey
-            ->getPublicKey()
-            ->verify($jwtDecoded->withoutSignature(), $signature);
+        $valid = $publicKey->verify($jwtDecoded->withoutSignature(), $signature);
         $this->assertTrue($valid);
+        $this->assertTrue($jwtDecoded->verify($publicKey));
     }
 
     /**
@@ -104,7 +111,7 @@ class JwtTest extends TestCase
      */
     public function testCreateRsaSigned(string $alg, string $key, string $hash)
     {
-        $privateKey = \phpseclib3\Crypt\RSA::loadPrivateKey($this->getPrivateKey($key));
+        $privateKey = RSA::loadPrivateKey($this->getPrivateKey($key));
 
         $jwt = Jwt::createRsaSigned([
             'ahoj' => 'světe', // unicode
@@ -156,6 +163,14 @@ class JwtTest extends TestCase
             'ES256' => ['ES256', 'nistp256', 'sha256'],
             'ES384' => ['ES384', 'nistp384', 'sha384'],
             'ES512' => ['ES512', 'nistp521', 'sha512'],
+        ];
+    }
+
+    public function providesEdDsa(): array
+    {
+        return [
+            'EdDSA+Ed25519' => ['EdDSA', 'Ed25519'],
+            'EdDSA+Ed448' => ['EdDSA', 'Ed448'],
         ];
     }
 
