@@ -64,9 +64,7 @@ class JwtBench
      */
     public function benchHmacVerify($params)
     {
-        assert($this->signed[$params['alg']]->verify(function (\stdClass $header) {
-            return 'secret';
-        }));
+        assert($this->signed[$params['alg']]->verify('secret'));
     }
 
     /**
@@ -96,9 +94,7 @@ class JwtBench
      */
     public function benchRsaVerify($params)
     {
-        assert($this->signed[$params['alg']]->verify(function (\stdClass $header) use ($params) {
-            return $params['publicKey'];
-        }));
+        assert($this->signed[$params['alg']]->verify($params['publicKey']));
     }
 
     /**
@@ -123,9 +119,7 @@ class JwtBench
      */
     public function benchEcVerify($params)
     {
-        $this->signed->verify(function (\stdClass $header) {
-            return $this->publicKey;
-        });
+        assert($this->signed->verify($this->publicKey));
     }
 
     public function provideHmacAlg(): \Generator

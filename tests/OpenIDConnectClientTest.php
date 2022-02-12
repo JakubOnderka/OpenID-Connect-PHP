@@ -374,9 +374,7 @@ class OpenIDConnectClientTest extends TestCase
                 $this->callback(function (array $value) use ($privateKey): bool {
                     $this->assertArrayHasKey('request', $value);
                     $this->assertEquals('id', $value['client_id']);
-                    $this->assertTrue((new Jwt($value['request']))->verify(function () use ($privateKey) {
-                        return $privateKey->getPublicKey();
-                    }));
+                    $this->assertTrue((new Jwt($value['request']))->verify($privateKey->getPublicKey()));
                     return true;
                 })
             )

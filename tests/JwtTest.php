@@ -135,6 +135,7 @@ class JwtTest extends TestCase
         $this->assertTrue($jwtDecoded->verify(function (\stdClass $header) use ($privateKey) {
             return $privateKey->getPublicKey();
         }));
+        $this->assertTrue($jwtDecoded->verify($privateKey->getPublicKey()));
     }
 
     /**

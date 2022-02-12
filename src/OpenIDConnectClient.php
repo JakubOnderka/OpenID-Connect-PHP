@@ -462,6 +462,8 @@ abstract class JwkEcFormat
 
 class Jwt
 {
+    const SUPPORTED_ALGOS = ['HS256', 'HS384', 'HS512', 'RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512', 'ES256', 'ES384', 'ES512', 'EdDSA'];
+
     /** @var string */
     private $token;
 
@@ -536,11 +538,11 @@ class Jwt
     /**
      * Check signature of this JWT.
      *
-     * @param \Closure(\stdClass): mixed $keyFetcher Closure that accepts parsed header and returns appropriate key
+     * @param \Closure(\stdClass): mixed|string|PublicKey $key Closure that accepts parsed header and returns appropriate key
      * @throws JsonException
      * @throws \Exception
      */
-    public function verify(\Closure $keyFetcher): bool
+    public function verify($key): bool
     {
         $signature = $this->signature();
         if ('' === $signature) {
@@ -552,57 +554,36 @@ class Jwt
             throw new \RuntimeException('Error missing signature type in token header');
         }
 
-        $payload = $this->withoutSignature();
-        $hashType = 'sha' . substr($header->alg, 2);
+        if (!in_array($header->alg, self::SUPPORTED_ALGOS, true)) {
+            throw new \RuntimeException("Unsupported JWT signature algorith $header->alg");
+        }
 
-        switch ($header->alg) {
-            case 'HS256':
-            case 'HS512':
-            case 'HS384':
-                $key = $keyFetcher($header);
+        if ($key instanceof \Closure) {
+            $key = $key($header);
+        }
+
+        $payload = $this->withoutSignature();
+
+        switch ($header->alg[0]) {
+            case 'H':
+                $hashType = 'sha' . substr($header->alg, 2);
                 return $this->verifyHmacSignature($hashType, $key, $payload, $signature);
-            case 'RS256':
-            case 'PS256':
-            case 'RS384':
-            case 'PS384':
-            case 'RS512':
-            case 'PS512':
-                $key = $keyFetcher($header);
+            case 'R':
+            case 'P':
+                $hashType = 'sha' . substr($header->alg, 2);
                 $isPss = $header->alg[0] === 'P';
                 return $this->verifyRsaSignature($hashType, $key, $payload, $signature, $isPss);
-            case 'ES256':
-            case 'ES384':
-            case 'ES512':
-                $key = $keyFetcher($header);
-                return $this->verifyEcSignature($hashType, $key, $payload, $signature);
-            case 'EdDSA':
-                $key = $keyFetcher($header);
-                return $key->verify($payload, $signature);
+            default: // ES or EdDSA
+                return $this->verifyEcSignature($header->alg, $key, $payload, $signature);
         }
-        throw new \RuntimeException("Unsupported JWT signature algorith $header->alg");
     }
 
-    /**
-     * @param string $hashType
-     * @param string $key
-     * @param string $payload
-     * @param string $signature
-     * @return bool
-     */
     private function verifyHmacSignature(string $hashType, string $key, string $payload, string $signature): bool
     {
         $expected = hash_hmac($hashType, $payload, $key, true);
         return hash_equals($signature, $expected);
     }
 
-    /**
-     * @param string $hashType
-     * @param RSA\PublicKey $key
-     * @param string $payload
-     * @param string $signature
-     * @param bool $isPss
-     * @return bool
-     */
     private function verifyRsaSignature(string $hashType, RSA\PublicKey $key, string $payload, string $signature, bool $isPss): bool
     {
         $rsa = $key->withHash($hashType);
@@ -615,16 +596,34 @@ class Jwt
         return $rsa->verify($payload, $signature);
     }
 
-    /**
-     * @param string $hashType
-     * @param EC\PublicKey $ec
-     * @param string $payload
-     * @param string $signature
-     * @return bool
-     */
-    private function verifyEcSignature(string $hashType, EC\PublicKey $ec, string $payload, string $signature): bool
+    private function verifyEcSignature(string $alg, EC\PublicKey $key, string $payload, string $signature): bool
     {
-        $expectedHalfSignatureSize = $hashType === 'sha512' ? 66 : substr($hashType, 3, 3) / 8;
+        switch ($alg) {
+            case 'ES256':
+                $requiredCurve = 'secp256r1';
+                $expectedHalfSignatureSize = 32;
+                $hashType = 'sha256';
+                break;
+            case 'ES384':
+                $requiredCurve = 'secp384r1';
+                $expectedHalfSignatureSize = 48;
+                $hashType = 'sha384';
+                break;
+            case 'ES512':
+                $requiredCurve = 'secp521r1';
+                $expectedHalfSignatureSize = 66;
+                $hashType = 'sha512';
+                break;
+            default: // EdDSA
+                if (!in_array($key->getCurve(), ['Ed25519', 'Ed448'], true)) {
+                    throw new \RuntimeException("Invalid curve {$key->getCurve()} provided for verifying EdDSA signed token");
+                }
+                return $key->verify($payload, $signature);
+        }
+
+        if ($key->getCurve() !== $requiredCurve) {
+            throw new \RuntimeException("Invalid curve {$key->getCurve()} provided for verifying $alg signed token ($requiredCurve curve is required)");
+        }
 
         $half = strlen($signature) / 2;
         if ($expectedHalfSignatureSize !== $half) {
@@ -634,7 +633,7 @@ class Jwt
             'r' => new BigInteger(substr($signature, 0, $half), 256),
             's' => new BigInteger(substr($signature, $half), 256),
         ];
-        return $ec->withSignatureFormat('raw')->withHash($hashType)->verify($payload, $rawSignature);
+        return $key->withSignatureFormat('raw')->withHash($hashType)->verify($payload, $rawSignature);
     }
 
     /**
