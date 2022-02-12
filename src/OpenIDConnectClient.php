@@ -306,9 +306,10 @@ class Jwks implements \JsonSerializable
     }
 
     /**
+     * Find appropriate public key that was used for JWT signature.
      * @throws OpenIDConnectClientException
      */
-    public function getKeyForHeader(\stdClass $header): PublicKey
+    public function getKeyForJwtHeader(\stdClass $header): PublicKey
     {
         if (!isset($header->alg)) {
             throw new OpenIDConnectClientException("Malformed JWT token header, `alg` field is missing");
@@ -321,13 +322,17 @@ class Jwks implements \JsonSerializable
         }
 
         foreach ($this->keys as $key) {
+            if (isset($key->use) && $key->use !== 'sig') {
+                continue;
+            }
+
             if ($key->kty === $keyType) {
                 if (!isset($header->kid) || $key->kid === $header->kid) {
-                    return $this->convertJwtToPublicKey($key);
+                    return $this->convertJwkToPublicKey($key);
                 }
             } else {
                 if (isset($key->alg) && isset($key->kid) && $key->alg === $header->alg && $key->kid === $header->kid) {
-                    return $this->convertJwtToPublicKey($key);
+                    return $this->convertJwkToPublicKey($key);
                 }
             }
         }
@@ -342,7 +347,7 @@ class Jwks implements \JsonSerializable
      * @return PublicKey
      * @throws OpenIDConnectClientException
      */
-    private function convertJwtToPublicKey(\stdClass $key): PublicKey
+    private function convertJwkToPublicKey(\stdClass $key): PublicKey
     {
         if (!isset($key->kty)) {
             throw new OpenIDConnectClientException("Malformed key object, `kty` field is missing");
@@ -1568,7 +1573,7 @@ class OpenIDConnectClient
     {
         if ($this->jwks) {
             try {
-                return $this->jwks->getKeyForHeader($header);
+                return $this->jwks->getKeyForJwtHeader($header);
             } catch (\Exception $e) {
                 // ignore if key not found and fetch key from server again
             }
@@ -1586,7 +1591,7 @@ class OpenIDConnectClient
             if ($jwks) {
                 $this->jwks = $jwks;
                 try {
-                    return $jwks->getKeyForHeader($header);
+                    return $jwks->getKeyForJwtHeader($header);
                 } catch (\Exception $e) {
                     // ignore if key not found and fetch key from server again
                 }
@@ -1608,11 +1613,11 @@ class OpenIDConnectClient
         }
 
         try {
-            return $jwks->getKeyForHeader($header);
+            return $jwks->getKeyForJwtHeader($header);
         } catch (OpenIDConnectClientException $e) {
             // No key found, try to check additionalJwks as last option
             if ($this->additionalJwks) {
-                return $this->additionalJwks->getKeyForHeader($header);
+                return $this->additionalJwks->getKeyForJwtHeader($header);
             } else {
                 throw $e;
             }

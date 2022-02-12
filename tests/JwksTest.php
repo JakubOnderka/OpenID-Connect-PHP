@@ -15,11 +15,11 @@ class JwksTest extends TestCase
 
         $content = Json::decode(file_get_contents(__DIR__ . "/data/jwks-ps256.json"));
         $jwks = new Jwks($content->keys);
-        $key = $jwks->getKeyForHeader($header);
+        $key = $jwks->getKeyForJwtHeader($header);
 
         $serialized = serialize($jwks);
         $jwksNew = unserialize($serialized);
-        $keyNew = $jwksNew->getKeyForHeader($header);
+        $keyNew = $jwksNew->getKeyForJwtHeader($header);
 
         $this->assertEquals($key, $keyNew);
     }
@@ -35,7 +35,7 @@ class JwksTest extends TestCase
 
             $jwks = new Jwks();
             $jwks->addPublicKey($publicKey);
-            $fetched = $jwks->getKeyForHeader((object)['alg' => 'ES256']);
+            $fetched = $jwks->getKeyForJwtHeader((object)['alg' => 'ES256']);
 
             $this->assertEquals($publicKey->toString('xml'), $fetched->toString('xml'));
         }
@@ -47,7 +47,7 @@ class JwksTest extends TestCase
 
             $jwks = new Jwks();
             $jwks->addPublicKey($publicKey);
-            $fetched = $jwks->getKeyForHeader((object)['alg' => 'RS256']);
+            $fetched = $jwks->getKeyForJwtHeader((object)['alg' => 'RS256']);
 
             $this->assertEquals($publicKey->toString('xml'), $fetched->toString('xml'));
         }
@@ -58,7 +58,7 @@ class JwksTest extends TestCase
 
         $jwks = new Jwks();
         $jwks->addPublicKey($publicKey);
-        $fetched = $jwks->getKeyForHeader((object)['alg' => 'EdDSA']);
+        $fetched = $jwks->getKeyForJwtHeader((object)['alg' => 'EdDSA']);
 
         $this->assertEquals($publicKey->toString('PKCS8'), $fetched->toString('PKCS8'));
     }
