@@ -365,8 +365,13 @@ class OpenIDConnectClientTest extends TestCase
         $client->method('commitSession')->willReturn(true);
         $client->setClientID('id');
         $privateKeys = \JakubOnderka\Json::decode(file_get_contents(__DIR__ . '/data/private_keys.json'));
+
+        // PrivateKey instance
         $privateKey = EC::loadPrivateKey($privateKeys->nistp256);
         $client->setClientPrivateKey($privateKey);
+
+        // Private key string
+        $client->setClientPrivateKey($privateKeys->nistp256);
 
         $client->expects($this->once())->method('fetchURL')
             ->with(

@@ -13,7 +13,11 @@ use function JakubOnderka\base64url_encode;
 
 class Jwt
 {
+    // Supported signature algorithms
     const SUPPORTED_ALGOS = ['HS256', 'HS384', 'HS512', 'RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512', 'ES256', 'ES384', 'ES512', 'EdDSA'];
+
+    // List of elliptic curves supported for ES or EdDSA
+    const SUPPORTED_CURVES = ['secp256r1', 'secp384r1', 'secp512r1', 'Ed22519', 'Ed448'];
 
     /** @var string */
     private $token;
@@ -193,7 +197,7 @@ class Jwt
      * @param array<string, mixed> $payload
      * @param string $hashAlg
      * @param string $secret
-     * @return \JakubOnderka\OpenIDConnectClient\Jwt
+     * @return Jwt
      * @throws JsonException
      */
     public static function createHmacSigned(array $payload, string $hashAlg, string $secret): Jwt

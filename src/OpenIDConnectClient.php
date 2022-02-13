@@ -34,6 +34,7 @@ use phpseclib3\Crypt\EC;
 use phpseclib3\Crypt\RSA;
 use JakubOnderka\OpenIDConnectClient\Jwt;
 use JakubOnderka\OpenIDConnectClient\Jwks;
+use phpseclib3\Exception\NoKeyLoadedException;
 
 /**
  *
@@ -1737,18 +1738,42 @@ class OpenIDConnectClient
     /**
      * Set private key that will be used for authentication to identity provider. When key is set, authentication method
      * is automatically set to `private_key_jwt`.
-     * @param PrivateKey $privateKey
+     *
+     * Private key can be instance of PrivateKey or path to file starting with `file://` or string. File or string must
+     * be in format supported by phpseclib library, that means PKCS1, PKCS8, XML or many others are supported.
+     *
+     * @param PrivateKey|string $privateKey
+     * @param string|null $password
      * @return void
      */
-    public function setClientPrivateKey(PrivateKey $privateKey)
+    public function setClientPrivateKey($privateKey, string $password = '')
     {
+        if (is_string($privateKey)) {
+            if (substr($privateKey, 0, 7) === 'file://') {
+                $path = substr($privateKey, 7);
+                $privateKey = file_get_contents($path);
+                if (!$privateKey) {
+                    throw new \InvalidArgumentException("Private key `$path` not found");
+                }
+            }
+
+            try {
+                $privateKey = RSA::load($privateKey, $password);
+            } catch (NoKeyLoadedException $e) {
+                $privateKey = EC::load($privateKey, $password);
+            }
+        }
+
+        if (!$privateKey instanceof PrivateKey) {
+            throw new \InvalidArgumentException('The key that was loaded was not a private key');
+        }
+
         if ($privateKey instanceof EC\PrivateKey) {
-            $supportedCurves = ['secp256r1', 'secp384r1', 'secp512r1', 'Ed22519', 'Ed448'];
-            if (!in_array($privateKey->getCurve(), $supportedCurves, true)) {
+            if (!in_array($privateKey->getCurve(), Jwt::SUPPORTED_CURVES, true)) {
                 throw new \InvalidArgumentException("Unsupported EC curve {$privateKey->getCurve()} provided");
             }
         } elseif (!$privateKey instanceof RSA\PrivateKey) {
-            throw new \InvalidArgumentException("Private key must be RSA or EC");
+            throw new \InvalidArgumentException("Private key must be RSA or EC, " . get_class($privateKey) . " provided");
         }
         $this->setAuthenticationMethod('private_key_jwt');
         $this->clientPrivateKey = $privateKey;
