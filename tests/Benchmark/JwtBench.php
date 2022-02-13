@@ -3,7 +3,7 @@
 namespace Benchmark;
 
 use JakubOnderka\Json;
-use JakubOnderka\Jwt;
+use JakubOnderka\OpenIDConnectClient\Jwt;
 use phpseclib3\Crypt\EC;
 use phpseclib3\Crypt\RSA;
 

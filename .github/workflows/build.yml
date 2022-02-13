@@ -44,7 +44,7 @@ jobs:
       - name: Run lint
         run: parallel-lint src tests
       - name: Run code style check
-        run: phpcs -s --standard=PSR12 src
+        run: phpcs
       - name: Run phpstan
         if: startsWith(matrix.php, '8.')
         run: phpstan

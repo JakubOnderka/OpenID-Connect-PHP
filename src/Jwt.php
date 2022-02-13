@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace JakubOnderka\OpenIDConnectClient;
@@ -7,6 +8,7 @@ use JakubOnderka\Json;
 use JakubOnderka\JsonException;
 use phpseclib3\Crypt\RSA;
 use phpseclib3\Crypt\EC;
+use phpseclib3\Crypt\Common\PublicKey;
 use phpseclib3\Math\BigInteger;
 use function JakubOnderka\base64url_decode;
 use function JakubOnderka\base64url_encode;

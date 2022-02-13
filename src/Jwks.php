@@ -1,4 +1,7 @@
 <?php
+
+// phpcs:disable PSR1.Classes.ClassDeclaration.MultipleClasses
+
 declare(strict_types=1);
 
 namespace JakubOnderka\OpenIDConnectClient;

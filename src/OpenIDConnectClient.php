@@ -1,8 +1,6 @@
 <?php
 
 // phpcs:disable PSR1.Classes.ClassDeclaration.MultipleClasses
-// phpcs:disable PSR12.Properties.ConstantVisibility.NotFound
-// phpcs:disable Generic.Files.LineLength.TooLong
 /**
  * Copyright MITRE 2020
  * Copyright Jakub Onderka 2022
@@ -1743,7 +1741,7 @@ class OpenIDConnectClient
      * be in format supported by phpseclib library, that means PKCS1, PKCS8, XML or many others are supported.
      *
      * @param PrivateKey|string $privateKey
-     * @param string|null $password
+     * @param string $password
      * @return void
      */
     public function setClientPrivateKey($privateKey, string $password = '')
