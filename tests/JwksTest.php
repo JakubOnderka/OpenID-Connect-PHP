@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 use JakubOnderka\Json;
-use JakubOnderka\Jwks;
+use JakubOnderka\OpenIDConnectClient\Jwks;
 use PHPUnit\Framework\TestCase;
 
 class JwksTest extends TestCase
