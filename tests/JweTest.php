@@ -9,36 +9,32 @@ use PHPUnit\Framework\TestCase;
 
 class JweTest extends TestCase
 {
-    /** @var RSA\PrivateKey */
-    private $privateKey;
-
-    public function __construct($name = null, array $data = [], $dataName = '')
-    {
-        parent::__construct($name, $data, $dataName);
-        $this->privateKey = RSA::loadPrivateKey(Json::decode(file_get_contents(__DIR__ . '/data/private_keys.json'))->RSA2048);
-    }
-
     /**
      * @dataProvider provide
      * @return void
      * @throws \JakubOnderka\JsonException
      */
-    public function testSleepAndWakeup(string $alg, string $enc)
+    public function testSleepAndWakeup(string $alg, string $enc, RSA\PrivateKey $privateKey)
     {
         $jwt = Jwt::createHmacSigned(['test' => 'test'], 'HS256', 'ahoj');
 
-        $jwe = Jwe::create($jwt, $this->privateKey->getPublicKey(), $enc, $alg);
-        $jwtDecrypted = $jwe->decrypt($this->privateKey);
+        $jwe = Jwe::create($jwt, $privateKey->getPublicKey(), $enc, $alg);
+        $jwtDecrypted = $jwe->decrypt($privateKey);
 
         $this->assertEquals('test', $jwtDecrypted->payload()->test);
     }
 
     public function provide(): array
     {
+        $keys = Json::decode(file_get_contents(__DIR__ . '/data/private_keys.json'));
+
         $output = [];
-        foreach (['RSA-OAEP-256', 'RSA-OAEP', 'RSA1_5'] as $alg) {
-            foreach (['A256GCM', 'A192GCM', 'A128GCM', 'A256CBC-HS512', 'A192CBC-HS384', 'A128CBC-HS256'] as $enc) {
-                $output["$alg+$enc"] = [$alg, $enc];
+        foreach (['RSA2048', 'RSA3072', 'RSA4096'] as $key) {
+            $privateKey = RSA\PrivateKey::loadPrivateKey($keys->{$key});
+            foreach (['RSA-OAEP-256', 'RSA-OAEP', 'RSA1_5'] as $alg) {
+                foreach (['A256GCM', 'A192GCM', 'A128GCM', 'A256CBC-HS512', 'A192CBC-HS384', 'A128CBC-HS256'] as $enc) {
+                    $output["$alg+$enc+$key"] = [$alg, $enc, $privateKey];
+                }
             }
         }
         return $output;
