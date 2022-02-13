@@ -18,7 +18,7 @@ namespace JakubOnderka {
 
 namespace {
 
-    use JakubOnderka\Jwt;
+    use JakubOnderka\OpenIDConnectClient\Jwt;
     use JakubOnderka\OpenIDConnectClient;
     use JakubOnderka\OpenIDConnectClientException;
     use JakubOnderka\TokenValidationFailed;

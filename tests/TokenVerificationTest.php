@@ -4,7 +4,7 @@ declare(strict_types=1);
 use JakubOnderka\CurlResponse;
 use JakubOnderka\Json;
 use JakubOnderka\JwkEcFormat;
-use JakubOnderka\Jwt;
+use JakubOnderka\OpenIDConnectClient\Jwt;
 use JakubOnderka\OpenIDConnectClient;
 use phpseclib3\Crypt\EC;
 use PHPUnit\Framework\MockObject\MockObject;

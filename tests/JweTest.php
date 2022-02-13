@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 use JakubOnderka\Json;
-use JakubOnderka\Jwt;
+use JakubOnderka\OpenIDConnectClient\Jwt;
 use JakubOnderka\OpenIDConnectClient\Jwe;
 use phpseclib3\Crypt\RSA;
 use PHPUnit\Framework\TestCase;
