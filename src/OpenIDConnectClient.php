@@ -474,7 +474,7 @@ class OpenIDConnectClient
             }
 
             // Save the access token
-            $this->accessToken = $tokenJson->access_token;
+            $this->setAccessToken($tokenJson->access_token);
 
             $sessionNonce = $this->getSessionKey(self::NONCE);
             if (!isset($sessionNonce)) {
@@ -539,7 +539,7 @@ class OpenIDConnectClient
 
             // Save the access token
             if ($accessToken) {
-                $this->accessToken = $accessToken;
+                $this->setAccessToken($accessToken);
             }
 
             // Success!
@@ -1520,6 +1520,7 @@ class OpenIDConnectClient
     public function setAccessToken(string $accessToken)
     {
         $this->accessToken = $accessToken;
+        $this->userInfo = null; // clear userinfo cache
     }
 
     /**
