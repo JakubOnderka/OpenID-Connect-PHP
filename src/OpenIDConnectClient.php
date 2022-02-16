@@ -476,9 +476,14 @@ class OpenIDConnectClient
             // Save the access token
             $this->accessToken = $tokenJson->access_token;
 
+            $sessionNonce = $this->getSessionKey(self::NONCE);
+            if (!isset($sessionNonce)) {
+                throw new OpenIDConnectClientException("Session nonce not set");
+            }
+
             // If this is a valid claim
             try {
-                $this->validateIdToken($this->idToken, $tokenJson->access_token);
+                $this->validateIdToken($this->idToken, $tokenJson->access_token, $sessionNonce);
             } catch (TokenValidationFailed $e) {
                 throw new OpenIDConnectClientException('Unable to validate ID token claims', 0, $e);
             } finally {
@@ -517,9 +522,14 @@ class OpenIDConnectClient
             // Save the id token
             $this->idToken = new Jwt($idToken);
 
+            $sessionNonce = $this->getSessionKey(self::NONCE);
+            if (!isset($sessionNonce)) {
+                throw new OpenIDConnectClientException("Session nonce not set");
+            }
+
             // If this is a valid claim
             try {
-                $this->validateIdToken($this->idToken, $accessToken);
+                $this->validateIdToken($this->idToken, $accessToken, $sessionNonce);
             } catch (TokenValidationFailed $e) {
                 throw new OpenIDConnectClientException('Unable to validate ID token claims', 0, $e);
             } finally {
@@ -1090,16 +1100,17 @@ class OpenIDConnectClient
      * Validate ID token and access token if provided.
      *
      * @see https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
-     * @param Jwt $jwt
+     * @param Jwt $idToken
      * @param string|null $accessToken If access token is provided, it will be validate if match to ID token
+     * @param string|null $sessionNonce Nonce from session to check if ID token is bound to current session
      * @return void
      * @throws OpenIDConnectClientException
      * @throws JsonException
      * @throws TokenValidationFailed
      */
-    protected function validateIdToken(Jwt $jwt, string $accessToken = null)
+    protected function validateIdToken(Jwt $idToken, string $accessToken = null, string $sessionNonce = null)
     {
-        $claims = $jwt->payload();
+        $claims = $idToken->payload();
 
         // (2). The Client MUST validate that the aud (audience) Claim contains its client_id value registered at the Issuer identified by the iss (issuer) Claim as an audience.
         if (!isset($claims->iss)) {
@@ -1145,20 +1156,19 @@ class OpenIDConnectClient
 
         // (11). If a nonce value was sent in the Authentication Request, a nonce Claim MUST be present and its value
         // checked to verify that it is the same value as the one that was sent in the Authentication Request.
-        $sessionNonce = $this->getSessionKey(self::NONCE);
-        if (!isset($claims->nonce)) {
-            throw new TokenValidationFailed("Required `nonce` claim not provided");
-        } elseif ($sessionNonce === null) {
-            throw new TokenValidationFailed("Session nonce is not set");
-        } elseif (!hash_equals($sessionNonce, $claims->nonce)) {
-            throw new TokenValidationFailed("Nonce do not match", $sessionNonce, $claims->nonce);
+        if ($sessionNonce !== null) {
+            if (!isset($claims->nonce)) {
+                throw new TokenValidationFailed("Required `nonce` claim not provided");
+            } elseif (!hash_equals($sessionNonce, $claims->nonce)) {
+                throw new TokenValidationFailed("Nonce do not match", $sessionNonce, $claims->nonce);
+            }
         }
 
         // Access Token hash value. Its value is the base64url encoding of the left-most half of the hash of the octets
         // of the ASCII representation of the access_token value, where the hash algorithm used is the hash algorithm
         // used in the alg Header Parameter of the ID Token's JOSE Header.
         if (isset($claims->at_hash) && isset($accessToken)) {
-            $idTokenHeader = $this->idToken->header();
+            $idTokenHeader = $idToken->header();
             if (isset($idTokenHeader->alg) && $idTokenHeader->alg !== 'none') {
                 $bit = substr($idTokenHeader->alg, 2, 3);
             } else {

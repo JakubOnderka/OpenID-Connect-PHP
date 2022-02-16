@@ -534,6 +534,7 @@ class OpenIDConnectClientTest extends TestCase
         $_REQUEST['code'] = 'code';
         $_REQUEST['state'] = 'state';
         $_SESSION['openid_connect_state'] = 'state';
+        $_SESSION['openid_connect_nonce'] = 'nonce';
 
         $client = $this->getMockBuilder(OpenIDConnectClient::class)
             ->setMethods(['fetchURL', 'verifyJwtSignature', 'validateIdToken'])
@@ -626,6 +627,7 @@ class OpenIDConnectClientTest extends TestCase
         $_REQUEST['code'] = 'code';
         $_REQUEST['state'] = 'state';
         $_SESSION['openid_connect_state'] = 'state';
+        $_SESSION['openid_connect_nonce'] = 'nonce';
 
         $client = $this->getMockBuilder(OpenIDConnectClient::class)
             ->setMethods(['fetchURL', 'verifyJwtSignature', 'validateIdToken'])
@@ -658,6 +660,7 @@ class OpenIDConnectClientTest extends TestCase
         $_REQUEST['code'] = 'code';
         $_REQUEST['state'] = 'state';
         $_SESSION['openid_connect_state'] = 'state';
+        $_SESSION['openid_connect_nonce'] = 'nonce';
 
         $client = $this->getMockBuilder(OpenIDConnectClient::class)
             ->setMethods(['fetchURL', 'verifyJwtSignature', 'validateIdToken'])
@@ -694,6 +697,7 @@ class OpenIDConnectClientTest extends TestCase
         $_REQUEST['code'] = 'code';
         $_REQUEST['state'] = 'state';
         $_SESSION['openid_connect_state'] = 'state';
+        $_SESSION['openid_connect_nonce'] = 'nonce';
         $_SESSION['openid_connect_code_verifier'] = 'verifier';
 
         $client = $this->getMockBuilder(OpenIDConnectClient::class)
