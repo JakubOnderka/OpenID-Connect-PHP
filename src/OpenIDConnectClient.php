@@ -989,6 +989,7 @@ class OpenIDConnectClient
      * @return \stdClass
      * @throws OpenIDConnectClientException
      * @throws JsonException
+     * @throws TokenValidationFailed
      */
     public function refreshToken(string $refreshToken): \stdClass
     {
@@ -1000,12 +1001,20 @@ class OpenIDConnectClient
 
         $json = $this->endpointRequest($tokenParams);
 
-        if (isset($json->access_token)) {
-            $this->accessToken = $json->access_token;
+        if (!isset($json->access_token)) {
+            throw new OpenIDConnectClientException("Required parameter `access_token` missing");
         }
 
-        if (isset($json->refresh_token)) {
-            $this->refreshToken = $json->refresh_token;
+        $this->setAccessToken($json->access_token);
+        $this->refreshToken = $json->refresh_token ?? null;
+
+        if (isset($json->id_token)) {
+            $idToken = new Jwt($json->id_token);
+            $this->verifyJwtSignature($idToken);
+            $this->validateIdToken($idToken, $this->accessToken);
+            $this->idToken = $idToken;
+        } else {
+            $this->idToken = null;
         }
 
         return $json;
