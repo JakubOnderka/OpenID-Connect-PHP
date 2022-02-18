@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0-rc1] - 2022-02-18
+
 ### BC
 * Renamed `Jwks::getKeyForHeader` to `Jwks::getKeyForJwtHeader`
 
