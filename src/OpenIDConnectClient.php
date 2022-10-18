@@ -84,9 +84,15 @@ class Json
      * @return \stdClass|mixed
      * @throws JsonException
      */
-    public static function decode(string $json, $mustBeObject = true)
+    public static function decode(string $json, bool $mustBeObject = true)
     {
-        if (defined('JSON_THROW_ON_ERROR')) {
+        if (function_exists('simdjson_decode')) {
+            try {
+                $decoded = simdjson_decode($json);
+            } catch (\RuntimeException $e) {
+                throw new JsonException("Could not decode provided JSON", 0, $e);
+            }
+        } elseif (defined('JSON_THROW_ON_ERROR')) {
             try {
                 $decoded = json_decode($json, false, 512, JSON_THROW_ON_ERROR);
             } catch (\JsonException $e) {
