@@ -146,7 +146,7 @@ class Jwe
     public static function create(Jwt $jwt, RSA\PublicKey $publicKey, string $enc, string $alg): Jwe
     {
         $header = base64_encode(Json::encode(['typ' => 'JWT', 'alg' => $alg, 'enc' => $enc]));
-        $keyLength = substr($enc, 1, 3) / 8;
+        $keyLength = (int)substr($enc, 1, 3) / 8;
         $key = random_bytes($keyLength);
 
         switch ($enc) {

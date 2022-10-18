@@ -1189,7 +1189,7 @@ class OpenIDConnectClient
                 // This should never happened, because alg is already checked in verifyJwtSignature method
                 throw new OpenIDConnectClientException("Invalid ID token alg");
             }
-            $len = $bit / 16;
+            $len = (int)$bit / 16;
             $expectedAtHash = base64url_encode(substr(hash('sha' . $bit, $accessToken, true), 0, $len));
 
             if (!hash_equals($expectedAtHash, $claims->at_hash)) {
