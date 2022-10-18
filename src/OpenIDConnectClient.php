@@ -979,7 +979,6 @@ class OpenIDConnectClient
             $response = $this->fetchURL($tokenEndpoint, $tokenParams)->json(true);
 
             if (isset($response->error)) {
-                // @phpstan-ignore-next-line phpstan bug #6026
                 throw new ErrorResponse($response->error, $response->error_description ?? null);
             }
             return $response;
@@ -1445,7 +1444,6 @@ class OpenIDConnectClient
         $response = $this->fetchURL($registrationEndpoint, Json::encode($postBody), $headers)->json(true);
 
         if (isset($response->error)) {
-            // @phpstan-ignore-next-line phpstan bug #6026
             throw new ErrorResponse($response->error, $response->error_description ?? null);
         }
 
@@ -1500,7 +1498,6 @@ class OpenIDConnectClient
         }
         $decoded = $response->json(true);
         if (isset($decoded->error)) {
-            // @phpstan-ignore-next-line phpstan bug #6026
             throw new ErrorResponse($decoded->error, $decoded->error_description ?? null);
         }
 
@@ -2210,7 +2207,6 @@ class OpenIDConnectClient
     {
         $response = $this->endpointRequestRaw($params, $endpointName)->json(true);
         if (isset($response->error)) {
-            // @phpstan-ignore-next-line phpstan bug #6026
             throw new ErrorResponse($response->error, $response->error_description ?? null);
         }
         return $response;
