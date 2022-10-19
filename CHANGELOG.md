@@ -4,7 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## [Unreleased]
+## [1.1.0] - 2022-10-19
+
+### New
+* Add support for [simdjson_php](https://github.com/crazyxman/simdjson_php), PHP extension that speeds up JSON parsing
+
+## [1.0.0] - 2022-04-11
+
+* No change from 1.0.0-rc1
 
 ## [1.0.0-rc1] - 2022-02-18
 
