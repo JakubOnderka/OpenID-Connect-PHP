@@ -826,6 +826,8 @@ class OpenIDConnectClient
             'response_type' => 'code',
             'redirect_uri' => $this->getRedirectURL(),
             'client_id' => $this->clientID,
+            'iss' => $this->clientID,
+            'aud' => $this->getIssuer(),
             'nonce' => $nonce,
             'state' => $state,
             'scope' => 'openid'
