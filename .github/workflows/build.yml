@@ -47,7 +47,7 @@ jobs:
         run: phpcs
       - name: Run phpstan
         if: startsWith(matrix.php, '8.')
-        run: phpstan
+        run: phpstan analyse src
       - name: Run unit tests
         run: vendor/bin/phpunit --verbose --colors=always --coverage-clover coverage.xml tests
       - uses: codecov/codecov-action@v2
