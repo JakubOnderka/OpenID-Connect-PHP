@@ -30,7 +30,10 @@ class JweTest extends TestCase
 
         $output = [];
         foreach (['RSA2048', 'RSA3072', 'RSA4096'] as $key) {
-            $privateKey = RSA\PrivateKey::loadPrivateKey($keys->{$key});
+            $privateKey = \phpseclib3\Crypt\PublicKeyLoader::loadPrivateKey($keys->{$key});
+            if (!$privateKey instanceof \phpseclib3\Crypt\RSA\PrivateKey) {
+                throw new RuntimeException("Invalid private key provided");
+            }
             foreach (['RSA-OAEP-256', 'RSA-OAEP', 'RSA1_5'] as $alg) {
                 foreach (['A256GCM', 'A192GCM', 'A128GCM', 'A256CBC-HS512', 'A192CBC-HS384', 'A128CBC-HS256'] as $enc) {
                     $output["$alg+$enc+$key"] = [$alg, $enc, $privateKey];

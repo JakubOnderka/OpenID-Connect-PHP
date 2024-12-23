@@ -42,7 +42,8 @@ class JwksTest extends TestCase
 
         // RSA
         foreach ([2048, 3072, 4096] as $size) {
-            $privateKey = \phpseclib3\Crypt\RSA\PrivateKey::loadPrivateKey($keys->{"RSA$size"});
+            $privateKey = \phpseclib3\Crypt\PublicKeyLoader::loadPrivateKey($keys->{"RSA$size"});
+            $this->assertInstanceOf(\phpseclib3\Crypt\RSA\PrivateKey::class, $privateKey);
             $publicKey = $privateKey->getPublicKey();
 
             $jwks = new Jwks();
