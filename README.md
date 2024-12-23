@@ -9,7 +9,7 @@ the OpenID Connect protocol to setup authentication.
 **This is a fork of [jumbojett/OpenID-Connect-PHP](https://github.com/jumbojett/OpenID-Connect-PHP)**
 
 Jumbojett`s library is great, but lacks of some features, proper testing, and it is not ready for new PHP versions. So I created
-this fork. This fork requires PHP 7.0 or greater, if you need to use older PHP version, please use original version.
+this fork. This fork requires PHP 7.1 or greater, if you need to use older PHP version, please use original version.
 
 **Most important changes:**
 
@@ -23,7 +23,7 @@ A special thanks goes to Michael Jett, original author of this library and Justi
 
 ## Requirements
 
- 1. PHP 7.0 or greater
+ 1. PHP 7.1 or greater
  2. CURL extension
  3. JSON extension
  4. APCu for caching (optional)

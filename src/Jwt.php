@@ -223,7 +223,7 @@ class Jwt
      * @return Jwt
      * @throws JsonException
      */
-    public static function createEcSigned(array $payload, EC\PrivateKey $privateKey, string $kid = null): Jwt
+    public static function createEcSigned(array $payload, EC\PrivateKey $privateKey, ?string $kid = null): Jwt
     {
         switch ($privateKey->getCurve()) {
             case 'secp256r1':
@@ -282,7 +282,7 @@ class Jwt
      * @return Jwt
      * @throws JsonException
      */
-    public static function createRsaSigned(array $payload, string $alg, RSA\PrivateKey $privateKey, string $kid = null): Jwt
+    public static function createRsaSigned(array $payload, string $alg, RSA\PrivateKey $privateKey, ?string $kid = null): Jwt
     {
         if (!in_array($alg, ['RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512'], true)) {
             throw new \InvalidArgumentException("Invalid JWT signature algorithm $alg");
@@ -313,7 +313,7 @@ class Jwt
      * @return string
      * @throws JsonException
      */
-    private static function createHeaderAndPayload(array $payload, string $alg, string $kid = null): string
+    private static function createHeaderAndPayload(array $payload, string $alg, ?string $kid = null): string
     {
         if ($kid) {
             $header = '{"alg":"' . $alg . '","typ":"JWT","kid":' . Json::encode($kid) . '}';

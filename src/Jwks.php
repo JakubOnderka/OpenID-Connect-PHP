@@ -40,7 +40,7 @@ class Jwks implements \JsonSerializable
      * @param string|null $use Can be 'sig' for signing or 'enc' for encryption
      * @return void
      */
-    public function addPublicKey(PublicKey $publicKey, string $kid = null, string $use = null)
+    public function addPublicKey(PublicKey $publicKey, ?string $kid = null, ?string $use = null)
     {
         if ($publicKey instanceof EC\PublicKey) {
             switch ($publicKey->getCurve()) {

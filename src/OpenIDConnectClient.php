@@ -165,7 +165,7 @@ class ErrorResponse extends OpenIDConnectClientException
     /** @var string */
     private $error;
 
-    public function __construct(string $error, string $description = null, \Throwable $previous = null)
+    public function __construct(string $error, ?string $description = null, ?\Throwable $previous = null)
     {
         $this->error = $error;
 
@@ -193,7 +193,7 @@ class CurlResponse
     /** @var string|null */
     public $contentType;
 
-    public function __construct(string $data, int $responseCode = 200, string $contentType = null)
+    public function __construct(string $data, int $responseCode = 200, ?string $contentType = null)
     {
         $this->data = $data;
         $this->responseCode = $responseCode;
@@ -426,7 +426,7 @@ class OpenIDConnectClient
      * @param string|null $issuer An Issuer Identifier is a case sensitive URL. If not provided, $providerUrl will be used as issuer
      * @throws OpenIDConnectClientException
      */
-    public function __construct(string $providerUrl, string $clientId = null, string $clientSecret = null, string $issuer = null)
+    public function __construct(string $providerUrl, ?string $clientId = null, ?string $clientSecret = null, ?string $issuer = null)
     {
         // Require the cURL and JSON PHP extensions to be installed
         if (!function_exists('curl_init')) {
@@ -570,7 +570,7 @@ class OpenIDConnectClient
      * @throws OpenIDConnectClientException
      * @throws JsonException
      */
-    public function signOut(string $idToken, string $redirect = null)
+    public function signOut(string $idToken, ?string $redirect = null)
     {
         $signoutParams = ['id_token_hint' => $idToken];
         if ($redirect !== null) {
@@ -1124,7 +1124,7 @@ class OpenIDConnectClient
      * @throws JsonException
      * @throws TokenValidationFailed
      */
-    protected function validateIdToken(Jwt $idToken, string $accessToken = null, string $sessionNonce = null)
+    protected function validateIdToken(Jwt $idToken, ?string $accessToken = null, ?string $sessionNonce = null)
     {
         $claims = $idToken->payload();
 
@@ -1321,7 +1321,7 @@ class OpenIDConnectClient
      * @throws OpenIDConnectClientException
      * @throws JsonException
      */
-    public function requestUserInfo(string $attribute = null)
+    public function requestUserInfo(?string $attribute = null)
     {
         if (!$this->userInfo) {
             if (!isset($this->accessToken)) {
@@ -1386,7 +1386,7 @@ class OpenIDConnectClient
      * @throws JsonException
      * @throws OpenIDConnectClientException
      */
-    public function getVerifiedClaims(string $attribute = null)
+    public function getVerifiedClaims(?string $attribute = null)
     {
         if (!$this->idToken) {
             throw new OpenIDConnectClientException("ID token is not set. Maybe user is not logged?");
@@ -1429,7 +1429,7 @@ class OpenIDConnectClient
      * @throws OpenIDConnectClientException
      * @throws JsonException
      */
-    public function register(string $clientName, string $authorization = null): \stdClass
+    public function register(string $clientName, ?string $authorization = null): \stdClass
     {
         $registrationEndpoint = $this->getProviderConfigValue('registration_endpoint');
 
@@ -1457,12 +1457,12 @@ class OpenIDConnectClient
      *
      * @see https://tools.ietf.org/html/rfc7662
      * @param string $token
-     * @param string $tokenTypeHint Can be for example `access_token` or `refresh_token`
+     * @param string|null $tokenTypeHint Can be for example `access_token` or `refresh_token`
      * @return \stdClass
      * @throws OpenIDConnectClientException
      * @throws JsonException
      */
-    public function introspectToken(string $token, string $tokenTypeHint = null): \stdClass
+    public function introspectToken(string $token, ?string $tokenTypeHint = null): \stdClass
     {
         $params = [
             'token' => $token,
@@ -1485,7 +1485,7 @@ class OpenIDConnectClient
      * @throws OpenIDConnectClientException
      * @throws JsonException
      */
-    public function revokeToken(string $token, string $tokenTypeHint = null): bool
+    public function revokeToken(string $token, ?string $tokenTypeHint = null): bool
     {
         $params = [
             'token' => $token,
