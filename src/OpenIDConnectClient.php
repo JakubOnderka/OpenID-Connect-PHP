@@ -117,7 +117,9 @@ class Json
      */
     public static function encode($value): string
     {
-        if (defined('JSON_THROW_ON_ERROR')) {
+        if (function_exists('simdjson_encode')) {
+            return simdjson_encode($value);
+        } elseif (defined('JSON_THROW_ON_ERROR')) {
             try {
                 return json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             } catch (\JsonException $e) {
