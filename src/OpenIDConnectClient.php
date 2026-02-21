@@ -1652,7 +1652,7 @@ class OpenIDConnectClient
      * @param string|null $httpProxy
      * @return void
      */
-    public function setHttpProxy($httpProxy)
+    public function setHttpProxy(?string $httpProxy)
     {
         $this->httpProxy = $httpProxy;
     }
@@ -1926,7 +1926,7 @@ class OpenIDConnectClient
     /**
      * @param string|null $codeChallengeMethod
      */
-    public function setCodeChallengeMethod($codeChallengeMethod)
+    public function setCodeChallengeMethod(?string $codeChallengeMethod)
     {
         if ($codeChallengeMethod !== null && !isset(self::PKCE_ALGS[$codeChallengeMethod])) {
             throw new \InvalidArgumentException("Invalid code challenge method $codeChallengeMethod");
@@ -1955,7 +1955,7 @@ class OpenIDConnectClient
      * @param string|null $authenticationMethod
      * @return void
      */
-    public function setAuthenticationMethod($authenticationMethod)
+    public function setAuthenticationMethod(?string $authenticationMethod)
     {
         $supportedMethods = ['client_secret_post', 'client_secret_basic', 'client_secret_jwt', 'private_key_jwt'];
         if ($authenticationMethod !== null && !in_array($authenticationMethod, $supportedMethods, true)) {
