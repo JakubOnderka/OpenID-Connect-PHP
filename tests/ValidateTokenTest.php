@@ -305,7 +305,7 @@ namespace {
         /**
          * @return OpenIDConnectClient|MockObject
          */
-        private function prepare(array $sessions = null)
+        private function prepare(?array $sessions = null)
         {
             if (!$sessions) {
                 $sessions = [
@@ -314,9 +314,7 @@ namespace {
                 ];
             }
 
-            $_REQUEST = [];
-            $_REQUEST['code'] = '123';
-            $_REQUEST['state'] = 'state';
+            $_REQUEST = ['code' => '123', 'state' => 'state'];
 
             $client = $this->getMockBuilder(OpenIDConnectClient::class)
                 ->onlyMethods(['requestTokens', 'getProviderConfigValue', 'getWellKnownIssuer', 'verifyJwtSignature', 'fetchURL', 'getSessionKey', 'unsetSessionKey'])
