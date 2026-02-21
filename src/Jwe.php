@@ -8,6 +8,7 @@ use JakubOnderka\Json;
 use JakubOnderka\JsonException;
 use phpseclib3\Crypt\AES;
 use phpseclib3\Crypt\RSA;
+
 use function JakubOnderka\base64url_decode;
 use function JakubOnderka\base64url_encode;
 
