@@ -418,6 +418,12 @@ class OpenIDConnectClient
     private $ch;
 
     /**
+     * cURL shared persistent handle that stay between requests
+     * Requires PHP 8.5+
+     */
+    private $curlSharedHandle;
+
+    /**
      * @var string|null
      */
     private $authenticationMethod;
@@ -2027,6 +2033,10 @@ class OpenIDConnectClient
      */
     public function fetchURL(string $url, $postBody = null, array $headers = []): CurlResponse
     {
+        if (function_exists('curl_share_init_persistent') && !$this->curlSharedHandle) {
+            $this->curlSharedHandle = curl_share_init_persistent([CURL_LOCK_DATA_DNS, CURL_LOCK_DATA_CONNECT]);
+        }
+
         if (!$this->ch) {
             // Share handle between requests to allow keep connection alive between requests
             $this->ch = curl_init();
@@ -2086,6 +2096,10 @@ class OpenIDConnectClient
 
         if (isset($this->certPath)) {
             $options[CURLOPT_CAINFO] = $this->certPath;
+        }
+
+        if ($this->curlSharedHandle) {
+            $options[CURLOPT_SHARE] = $this->curlSharedHandle;
         }
 
         if (!curl_setopt_array($this->ch, $options)) {
