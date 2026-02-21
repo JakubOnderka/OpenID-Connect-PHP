@@ -25,7 +25,7 @@ A special thanks goes to Michael Jett, original author of this library and Justi
 
  1. PHP 7.2 or greater
  2. CURL extension
- 3. JSON extension
+ 3. JSON extension (or [simdjson_php](https://github.com/JakubOnderka/simdjson_php) for better performance)
  4. APCu for caching (optional)
 
 ## Install
