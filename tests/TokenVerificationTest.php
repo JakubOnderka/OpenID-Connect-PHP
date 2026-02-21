@@ -145,7 +145,7 @@ JSON;
     {
         return $this
             ->getMockBuilder(OpenIDConnectClient::class)
-            ->setMethods(['fetchUrl'])
+            ->onlyMethods(['fetchUrl'])
             ->setConstructorArgs(['https://jwt.io/'])
             ->getMock();
     }

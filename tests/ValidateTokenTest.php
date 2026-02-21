@@ -319,7 +319,7 @@ namespace {
             $_REQUEST['state'] = 'state';
 
             $client = $this->getMockBuilder(OpenIDConnectClient::class)
-                ->setMethods(['requestTokens', 'getProviderConfigValue', 'getWellKnownIssuer', 'verifyJwtSignature', 'fetchURL', 'getSessionKey', 'unsetSessionKey'])
+                ->onlyMethods(['requestTokens', 'getProviderConfigValue', 'getWellKnownIssuer', 'verifyJwtSignature', 'fetchURL', 'getSessionKey', 'unsetSessionKey'])
                 ->setConstructorArgs(['https://jwt.io/'])
                 ->getMock();
             $client->method('getProviderConfigValue')->willReturn(true);
