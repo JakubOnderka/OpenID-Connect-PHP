@@ -353,7 +353,10 @@ class OpenIDConnectClientTest extends TestCase
         $this->assertFalse($client->authenticate());
     }
 
-    public function testRequestAuthorization_par_privateKey()
+    /**
+     * @dataProvider privateKey
+     */
+    public function testRequestAuthorization_par_privateKey(string $privateKey)
     {
         $this->cleanup();
 
@@ -364,22 +367,21 @@ class OpenIDConnectClientTest extends TestCase
             ->getMock();
         $client->method('commitSession')->willReturn(true);
         $client->setClientID('id');
-        $privateKeys = \JakubOnderka\Json::decode(file_get_contents(__DIR__ . '/data/private_keys.json'));
 
         // PrivateKey instance
-        $privateKey = EC::loadPrivateKey($privateKeys->nistp256);
-        $client->setClientPrivateKey($privateKey);
+        $privateKeyInstance = EC::loadPrivateKey($privateKey);
+        $client->setClientPrivateKey($privateKeyInstance);
 
         // Private key string
-        $client->setClientPrivateKey($privateKeys->nistp256);
+        $client->setClientPrivateKey($privateKey);
 
         $client->expects($this->once())->method('fetchURL')
             ->with(
                 $this->equalTo('https://example.com/par'),
-                $this->callback(function (array $value) use ($privateKey): bool {
+                $this->callback(function (array $value) use ($privateKeyInstance): bool {
                     $this->assertArrayHasKey('request', $value);
                     $this->assertEquals('id', $value['client_id']);
-                    $this->assertTrue((new Jwt($value['request']))->verify($privateKey->getPublicKey()));
+                    $this->assertTrue((new Jwt($value['request']))->verify($privateKeyInstance->getPublicKey()));
                     return true;
                 })
             )
@@ -738,5 +740,17 @@ class OpenIDConnectClientTest extends TestCase
 
         $_SERVER['SERVER_NAME'] = '';
         $_SERVER['REQUEST_URI'] = '';
+    }
+
+    public function privateKey(): array
+    {
+        $keys = \JakubOnderka\Json::decode(file_get_contents(__DIR__ . '/data/private_keys.json'));
+        return [
+            [$keys->nistp256],
+            [$keys->nistp384],
+            [$keys->nistp521],
+            [$keys->Ed25519],
+            [$keys->Ed448],
+        ];
     }
 }
