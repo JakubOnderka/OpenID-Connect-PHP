@@ -1440,7 +1440,7 @@ class OpenIDConnectClient
      *
      * @see https://openid.net/specs/openid-connect-registration-1_0.html
      * @param string $clientName
-     * @param string $authorization Authorization Bearer token
+     * @param string|null $authorization Authorization Bearer token
      * @return \stdClass Decoded response
      * @throws OpenIDConnectClientException
      * @throws JsonException
@@ -2174,7 +2174,7 @@ class OpenIDConnectClient
         }
         $authMethodsSupported = $this->getProviderConfigValue("{$endpointName}_endpoint_auth_methods_supported", ['client_secret_basic']);
 
-        if ($this->authenticationMethod && !in_array($this->authenticationMethod, $authMethodsSupported)) {
+        if ($this->authenticationMethod && !in_array($this->authenticationMethod, $authMethodsSupported, true)) {
             $supportedMethods = implode(", ", $authMethodsSupported);
             throw new OpenIDConnectClientException("Authentication method $this->authenticationMethod is not supported by IdP for $endpointName endpoint. Supported methods are: $supportedMethods");
         }
