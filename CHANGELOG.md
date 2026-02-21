@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.3.0] - 2026-02-22
+
+### BC
+* Drop support for PHP 7.1
+
+### Added
+* Make possible to disable JWT-Secured Authorization Request even if IdP announce support
+* Use `simdjson_base64_{decode,encode}` methods if simdjson extension is installed for faster base64url encoding/decoding
+* Support persistent connections to remote server for PHP 8.5+
+* Test against PHP 8.5
+
+### Fixes
+* Typo in supported curves for JWT private key
+* Avoid using deprecated methods in tests
+
 ## [1.2.0] - 2024-12-23
 
 ### BC
