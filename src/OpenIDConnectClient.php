@@ -52,8 +52,12 @@ use phpseclib3\Exception\NoKeyLoadedException;
  */
 function base64url_decode(string $base64url): string
 {
-    $base64 = strtr($base64url, '-_', '+/');
-    $decoded = base64_decode($base64, true);
+    if (function_exists('simdjson_base64_decode')) {
+        $decoded = simdjson_base64_decode($base64url, false, true);
+    } else {
+        $base64 = strtr($base64url, '-_', '+/');
+        $decoded = base64_decode($base64, true);
+    }
     if ($decoded === false) {
         throw new \RuntimeException("Could not decode string as base64.");
     }
@@ -66,6 +70,10 @@ function base64url_decode(string $base64url): string
  */
 function base64url_encode(string $str): string
 {
+    if (function_exists('simdjson_base64_encode')) {
+        return rtrim(simdjson_base64_encode($str, true), '=');
+    }
+
     $enc = base64_encode($str);
     $enc = rtrim($enc, '=');
     $enc = strtr($enc, '+/', '-_');
