@@ -353,6 +353,76 @@ class OpenIDConnectClientTest extends TestCase
         $this->assertFalse($client->authenticate());
     }
 
+    public function testRequestAuthorization_jarDisabled()
+    {
+        $this->cleanup();
+
+        /** @var OpenIDConnectClient | MockObject $client */
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->onlyMethods(['redirect', 'commitSession', 'fetchURL'])
+            ->setConstructorArgs(['https://example.com'])
+            ->getMock();
+        $client->method('commitSession')->willReturn(true);
+
+        $client->expects($this->once())->method('fetchURL')
+            ->with(
+                $this->equalTo('https://example.com/par'),
+                $this->callback(function (array $value) use ($client): bool {
+                    $this->assertArrayNotHasKey('request', $value);
+                    $this->assertArrayHasKey('nonce', $value);
+                    $this->assertArrayHasKey('state', $value);
+                    $this->assertEquals('id', $value['client_id']);
+                    return true;
+                })
+            )
+            ->willReturn(new CurlResponse('{"request_uri":"urn:ietf:params:oauth:request_uri:bwc4JK-ESC0w8acc191e-Y1LTC2"}'));
+
+        $client->expects($this->once())->method('redirect')->with(
+            $this->callback(function (string $value): bool {
+                $parsed = parse_url($value);
+                parse_str($parsed['query'], $query);
+                $this->assertEquals('id', $query['client_id']);
+                $this->assertEquals('urn:ietf:params:oauth:request_uri:bwc4JK-ESC0w8acc191e-Y1LTC2', $query['request_uri']);
+                return true;
+            })
+        );
+        $client->setClientID('id');
+        $client->setClientSecret('secret');
+        $client->setJwtSecuredAuthorizationRequest(false);
+        $client->providerConfigParam([
+            'authorization_endpoint' => 'https://example.com',
+            'pushed_authorization_request_endpoint' => 'https://example.com/par',
+            'token_endpoint' => 'https://example.com/token',
+            'token_endpoint_auth_methods_supported' => ['client_secret_basic'],
+            'request_parameter_supported' => true,
+        ]);
+        $this->assertFalse($client->authenticate());
+    }
+
+    public function testRequestAuthorization_jarRequiredButNotSupported()
+    {
+        $this->cleanup();
+
+        /** @var OpenIDConnectClient | MockObject $client */
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->onlyMethods(['commitSession'])
+            ->setConstructorArgs(['https://example.com'])
+            ->getMock();
+        $client->method('commitSession')->willReturn(true);
+        $client->setJwtSecuredAuthorizationRequest(true);
+        $client->setClientID('id');
+        $client->setClientSecret('secret');
+        $client->providerConfigParam([
+            'authorization_endpoint' => 'https://example.com',
+            'pushed_authorization_request_endpoint' => 'https://example.com/par',
+            'token_endpoint' => 'https://example.com/token',
+            'token_endpoint_auth_methods_supported' => ['client_secret_basic'],
+            'request_parameter_supported' => false,
+        ]);
+        $this->expectException(JakubOnderka\OpenIDConnectClientException::class);
+        $client->authenticate();
+    }
+
     /**
      * @dataProvider privateKey
      */

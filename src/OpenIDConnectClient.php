@@ -396,6 +396,12 @@ class OpenIDConnectClient
     private $codeChallengeMethod;
 
     /**
+     * @var bool|null
+     * @see https://datatracker.ietf.org/doc/html/rfc9101
+     */
+    private $jwtSecuredAuthorizationRequest = null;
+
+    /**
      * @var array<string, mixed> holds PKCE supported algorithms
      */
     const PKCE_ALGS = ['S256' => 'sha256', 'plain' => false];
@@ -883,7 +889,12 @@ class OpenIDConnectClient
 
         // Send as signed JWT to remote server when client secret or private key is set
         // @see https://datatracker.ietf.org/doc/html/rfc9101
-        if ($this->getProviderConfigValue('request_parameter_supported', false) && ($this->clientPrivateKey || $this->clientSecret)) {
+        $jwtSecuredAuthorizationRequestSupported = $this->getProviderConfigValue('request_parameter_supported', false);
+        if ($this->jwtSecuredAuthorizationRequest && !$jwtSecuredAuthorizationRequestSupported) {
+            throw new OpenIDConnectClientException("JWT-Secured Authorization Request is not supported by IdP");
+        }
+        $useJwtSecuredAuthorizationRequest = $jwtSecuredAuthorizationRequestSupported && $this->jwtSecuredAuthorizationRequest !== false;
+        if ($useJwtSecuredAuthorizationRequest && ($this->clientPrivateKey || $this->clientSecret)) {
             if ($this->clientPrivateKey instanceof EC\PrivateKey) {
                 $jwt = Jwt::createEcSigned($authParams, $this->clientPrivateKey);
             } elseif ($this->clientPrivateKey) {
@@ -1921,6 +1932,23 @@ class OpenIDConnectClient
             throw new \InvalidArgumentException("Invalid code challenge method $codeChallengeMethod");
         }
         $this->codeChallengeMethod = $codeChallengeMethod;
+    }
+
+    /**
+     * @return bool|null
+     */
+    public function getJwtSecuredAuthorizationRequest()
+    {
+        return $this->jwtSecuredAuthorizationRequest;
+    }
+
+    /**
+     * @param bool|null $jwtSecuredAuthorizationRequest
+     * @return void
+     */
+    public function setJwtSecuredAuthorizationRequest(?bool $jwtSecuredAuthorizationRequest): void
+    {
+        $this->jwtSecuredAuthorizationRequest = $jwtSecuredAuthorizationRequest;
     }
 
     /**
