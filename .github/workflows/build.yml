@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ ubuntu-latest ]
-        php: [ '7.1', '7.2', '7.3', '7.4', '8.0', '8.1', '8.2', '8.3', '8.4' ]
+        php: [ '7.1', '7.2', '7.3', '7.4', '8.0', '8.1', '8.2', '8.3', '8.4', '8.5' ]
 
     steps:
       - name: Checkout
@@ -31,7 +31,7 @@ jobs:
         id: composer-cache
         run: echo "::set-output name=dir::$(composer config cache-files-dir)"
       - name: Cache composer dependencies
-        uses: actions/cache@v1
+        uses: actions/cache@v4
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
           key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
@@ -51,7 +51,7 @@ jobs:
       - name: Run unit tests
         run: vendor/bin/phpunit --verbose --colors=always --coverage-clover coverage.xml tests
       - uses: codecov/codecov-action@v2
-        if: matrix.php == 8.4
+        if: matrix.php == 8.5
         with:
           files: coverage.xml
 
