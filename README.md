@@ -23,7 +23,7 @@ A special thanks goes to Michael Jett, original author of this library and Justi
 
 ## Requirements
 
- 1. PHP 7.1 or greater
+ 1. PHP 7.2 or greater
  2. CURL extension
  3. JSON extension
  4. APCu for caching (optional)
