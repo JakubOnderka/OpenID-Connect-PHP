@@ -607,6 +607,7 @@ class OpenIDConnectClientTest extends TestCase
         $_REQUEST['state'] = 'state';
         $_SESSION['openid_connect_state'] = 'state';
         $_SESSION['openid_connect_nonce'] = 'nonce';
+        $_SESSION['openid_connect_code_verifier'] = 'verifier';
 
         $client = $this->getMockBuilder(OpenIDConnectClient::class)
             ->onlyMethods(['fetchURL', 'verifyJwtSignature', 'validateIdToken'])
@@ -644,6 +645,7 @@ class OpenIDConnectClientTest extends TestCase
         $_REQUEST['code'] = 'code';
         $_REQUEST['state'] = 'state_different';
         $_SESSION['openid_connect_state'] = 'state';
+        $_SESSION['openid_connect_code_verifier'] = 'verifier';
 
         $client = $this->getMockBuilder(OpenIDConnectClient::class)
             ->onlyMethods(['fetchURL'])
@@ -700,6 +702,7 @@ class OpenIDConnectClientTest extends TestCase
         $_REQUEST['state'] = 'state';
         $_SESSION['openid_connect_state'] = 'state';
         $_SESSION['openid_connect_nonce'] = 'nonce';
+        $_SESSION['openid_connect_code_verifier'] = 'verifier';
 
         $client = $this->getMockBuilder(OpenIDConnectClient::class)
             ->onlyMethods(['fetchURL', 'verifyJwtSignature', 'validateIdToken'])
@@ -733,6 +736,7 @@ class OpenIDConnectClientTest extends TestCase
         $_REQUEST['state'] = 'state';
         $_SESSION['openid_connect_state'] = 'state';
         $_SESSION['openid_connect_nonce'] = 'nonce';
+        $_SESSION['openid_connect_code_verifier'] = 'verifier';
 
         $client = $this->getMockBuilder(OpenIDConnectClient::class)
             ->onlyMethods(['fetchURL', 'verifyJwtSignature', 'validateIdToken'])
@@ -781,7 +785,6 @@ class OpenIDConnectClientTest extends TestCase
         $client->method('validateIdToken')->willReturn(true);
         $client->setClientID('client-id');
         $client->setClientSecret('client-secret');
-        $client->setCodeChallengeMethod('S256');
         $client->providerConfigParam([
             'token_endpoint' => 'https://example.com',
             'token_endpoint_auth_methods_supported' => ['client_secret_post'],
@@ -792,6 +795,41 @@ class OpenIDConnectClientTest extends TestCase
                 $this->assertEquals('code', $post['code']);
                 $this->assertEquals('client-id', $post['client_id']);
                 $this->assertEquals('verifier', $post['code_verifier']);
+                return true;
+            }))->willReturn($this->authorizationCodeResponse());
+        $this->assertTrue($client->authenticate());
+    }
+
+    public function testRequestTokens_codeChallengeMethod_disabled()
+    {
+        $this->cleanup();
+
+        $_REQUEST['code'] = 'code';
+        $_REQUEST['state'] = 'state';
+        $_SESSION['openid_connect_state'] = 'state';
+        $_SESSION['openid_connect_nonce'] = 'nonce';
+        $_SESSION['openid_connect_code_verifier'] = 'verifier';
+
+        $client = $this->getMockBuilder(OpenIDConnectClient::class)
+            ->onlyMethods(['fetchURL', 'verifyJwtSignature', 'validateIdToken'])
+            ->setConstructorArgs(['https://example.com'])
+            ->getMock();
+
+        $client->method('verifyJwtSignature')->willReturn(true);
+        $client->method('validateIdToken')->willReturn(true);
+        $client->setClientID('client-id');
+        $client->setClientSecret('client-secret');
+        $client->setCodeChallengeMethod(null);
+        $client->providerConfigParam([
+            'token_endpoint' => 'https://example.com',
+            'token_endpoint_auth_methods_supported' => ['client_secret_post'],
+        ]);
+        $client->method('fetchURL')
+            ->with($this->equalTo('https://example.com'), $this->callback(function (array $post): bool {
+                $this->assertEquals('authorization_code', $post['grant_type']);
+                $this->assertEquals('code', $post['code']);
+                $this->assertEquals('client-id', $post['client_id']);
+                $this->assertArrayNotHasKey('code_verifier', $post);
                 return true;
             }))->willReturn($this->authorizationCodeResponse());
         $this->assertTrue($client->authenticate());
