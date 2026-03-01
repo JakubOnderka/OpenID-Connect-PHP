@@ -4,12 +4,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.4.0] - 2026-03-03
+
+### Fixed
+* Use Code Challenge Method by default to match RFC7636 specification. Sending CCM can be disabled by setting `setCodeChallengeMethod` to `null`.
+* Random string generator now uses constant time method to encode random bytes to base64 encoding if sodium extension is installed.
+
 ## [1.3.0] - 2026-02-22
 
 ### BC
 * Drop support for PHP 7.1
 
-### Added
+### New
 * Make possible to disable JWT-Secured Authorization Request even if IdP announce support
 * Use `simdjson_base64_{decode,encode}` methods if simdjson extension is installed for faster base64url encoding/decoding
 * Support persistent connections to remote server for PHP 8.5+

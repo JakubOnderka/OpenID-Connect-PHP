@@ -393,7 +393,7 @@ class OpenIDConnectClient
      * @var string|null holds code challenge method for PKCE mode
      * @see https://tools.ietf.org/html/rfc7636
      */
-    private $codeChallengeMethod;
+    private $codeChallengeMethod = 'S256';
 
     /**
      * @var bool|null
@@ -865,15 +865,9 @@ class OpenIDConnectClient
             $authParams['response_type'] = implode(' ', $this->responseTypes);
         }
 
-        // If the client supports Proof Key for Code Exchange (PKCE)
         $ccm = $this->codeChallengeMethod;
         if ($ccm) {
-            $supportedCodeChallengeMethods = $this->getProviderConfigValue('code_challenge_methods_supported', []);
-            if (!in_array($ccm, $supportedCodeChallengeMethods, true)) {
-                throw new OpenIDConnectClientException("Unsupported code challenge method $ccm by IdP. Supported methods: " . implode(', ', $supportedCodeChallengeMethods));
-            }
-
-            $codeVerifier = base64url_encode(\random_bytes(32));
+            $codeVerifier = $this->generateRandString(32);
             $this->setSessionKey(self::CODE_VERIFIER, $codeVerifier);
 
             if (!empty(self::PKCE_ALGS[$ccm])) {
@@ -2272,9 +2266,14 @@ class OpenIDConnectClient
      * @return string
      * @throws \Exception
      */
-    protected function generateRandString(): string
+    protected function generateRandString($randomBytesLenght = 16): string
     {
-        return base64url_encode(\random_bytes(16));
+        $randomString = \random_bytes($randomBytesLenght);
+        if (function_exists('sodium_bin2base64')) {
+            // If sodium extension is enabled, use constant time method to encode random string to URL safe base64
+            return sodium_bin2base64($randomString, SODIUM_BASE64_VARIANT_URLSAFE_NO_PADDING);
+        }
+        return base64url_encode($randomString);
     }
 
     /**
