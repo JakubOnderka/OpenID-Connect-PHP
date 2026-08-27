@@ -9,7 +9,7 @@
     }],
     "require": {
         "php": ">=7.2",
-        "phpseclib/phpseclib": ">=3.0.7",
+        "phpseclib/phpseclib": "^3.0.7",
         "ext-json": "*",
         "ext-curl": "*"
     },
